@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dark Puff</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Spray+Paint&family=Russo+One&family=Inter:wght@400;500;600&display=swap">
 <style>
 :root{--bg:#070304;--card:#140a0c;--line:#3a1216;--ink:#f6ecec;--mute:#a58a8e;--acc:#ff2233;--acc2:#b0001a;
---head:'Russo One',Impact,sans-serif;--body:'Inter',-apple-system,'Segoe UI',sans-serif}
+--head:'Russo One',Impact,sans-serif;--drip:'Rubik Spray Paint','Russo One',Impact,sans-serif;--body:'Inter',-apple-system,'Segoe UI',sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--body);min-height:100vh;overflow-x:hidden;
 padding:16px 14px calc(96px + env(safe-area-inset-bottom,0px))}
@@ -157,6 +157,10 @@ textarea.inp{min-height:90px;resize:none}.inp:focus{border-color:var(--acc);outl
 .okc{width:110px;height:110px;margin:10px auto 14px;border-radius:50%;border:1.5px solid var(--acc);display:grid;place-items:center;font-size:48px;color:var(--acc);text-shadow:0 0 16px var(--acc);background:radial-gradient(circle,#5a0d16,transparent 70%)}
 #pat{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.32;background-repeat:repeat;background-size:240px 240px}
 .empty .mas{margin:0 auto}
+h1,h2,.name,.ct,.city b,.dn{font-family:var(--drip);font-weight:400;letter-spacing:.02em;line-height:1.1;color:#fff;text-shadow:0 0 14px #ff223388,0 2px 0 #00000055}
+h1{font-size:30px}h2{font-size:24px}
+.name{font-size:17px}.ct{font-size:30px}.city b{font-size:24px}.dn{font-size:32px}
+.hero h1,.top .logo{color:#ff3344;text-shadow:0 0 10px #ff2233,0 0 26px #b0001a}
 </style>
 </head>
 <body>
