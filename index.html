@@ -87,7 +87,7 @@ nav button{flex:1;padding:9px 0 7px;border-radius:18px;font-size:11px;color:var(
 nav button i{display:block;font-style:normal;font-size:20px}
 nav button.on{background:var(--acc);color:#fff;font-weight:600;box-shadow:0 0 18px #ff223388}
 nav em{position:absolute;top:2px;right:16%;background:#fff;color:var(--acc2);font-style:normal;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px}
-.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#1c0709;border:1px solid var(--acc);
+.toast{z-index:20;position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#1c0709;border:1px solid var(--acc);
 padding:6px 16px 6px 6px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;display:flex;align-items:center;gap:10px;z-index:9;white-space:nowrap}
 .toast img{width:30px;height:30px;border-radius:50%}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -134,6 +134,27 @@ background:radial-gradient(circle,#ffd6d9cc,#ff223366 60%,transparent 72%);anima
 .st.ok{background:#ff223326;color:#ff6b77}.st.no{background:#ffffff14;color:var(--mute)}
 .cancel{width:100%;margin-top:12px;padding:11px;border:1.5px solid var(--line);border-radius:12px;color:#ff6b77;font-weight:600}
 .cancel:active{border-color:var(--acc)}
+.co{position:fixed;inset:0;z-index:12;display:none}.co.on{display:block}
+.grab{width:44px;height:4px;border-radius:4px;background:#5a2a30;margin:0 auto 14px}
+.sum{border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin-bottom:16px;background:var(--card)}
+.sum .r{display:flex;justify-content:space-between;padding:3px 0;color:var(--mute)}.sum .r b{color:var(--ink)}
+.sum .t{border-top:1px solid var(--line);margin-top:8px;padding-top:10px;font-family:var(--head);font-size:17px;color:var(--ink)}.sum .t b{color:var(--acc);font-weight:400;text-shadow:0 0 12px #ff223388}
+.stp{display:flex;align-items:center;gap:14px}
+.ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--acc) calc(var(--p)*1%),#2a0f13 0);position:relative;box-shadow:0 0 22px #ff223366}
+.ring:before{content:"";position:absolute;inset:5px;border-radius:50%;background:#0f0708}
+.ring span{position:relative;text-align:center;font-family:var(--head);line-height:1;font-size:20px}.ring small{display:block;font:500 10px var(--body);color:var(--mute);margin-top:3px}
+.stl{color:var(--mute);font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:12px}
+.ct{font-family:var(--head);font-size:26px;text-transform:uppercase;margin:12px 0 14px}
+.seg{display:flex;gap:8px;margin-bottom:12px}
+.seg button{flex:1;padding:13px 6px;border-radius:14px;background:var(--card);border:1.5px solid var(--line);font-weight:600;font-size:13px;text-transform:uppercase;color:var(--mute)}
+.seg button.on{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 0 18px #ff223377}
+.inp{display:block;width:100%;padding:15px 16px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font:inherit;margin-bottom:12px}
+textarea.inp{min-height:90px;resize:none}.inp:focus{border-color:var(--acc);outline:0;box-shadow:0 0 16px #ff223355}
+.hint{color:var(--mute);font-size:13px;margin:0 2px 14px}.hint b{color:var(--ink)}
+.bk{display:block;width:100%;text-align:center;margin-top:10px;padding:8px;color:var(--mute);text-transform:uppercase;letter-spacing:.1em;font-size:13px}
+.ghost{background:none;border:1.5px solid var(--acc);box-shadow:none;color:#fff}
+.done{text-align:center;padding:8px 0 2px}.done p{margin:4px 0}
+.okc{width:110px;height:110px;margin:10px auto 14px;border-radius:50%;border:1.5px solid var(--acc);display:grid;place-items:center;font-size:48px;color:var(--acc);text-shadow:0 0 16px var(--acc);background:radial-gradient(circle,#5a0d16,transparent 70%)}
 </style>
 </head>
 <body>
@@ -142,6 +163,7 @@ background:radial-gradient(circle,#ffd6d9cc,#ff223366 60%,transparent 72%);anima
 <main id="app"></main>
 <nav id="nav"></nav>
 <div id="sheet"></div>
+<div id="co"></div>
 <div class="toast" id="toast"><img id="tim" alt=""><span id="ttx"></span></div>
 
 <script>
@@ -149,6 +171,14 @@ const MASCOT = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEB
 document.getElementById("spimg").src = MASCOT;
 const AVATAR = "data:image/jpeg;base64,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";
 const SHOP = "Dark Puff";
+// ===== ОФОРМЛЕНИЕ ЗАКАЗА: настройки =====
+// Менеджеры по городам: сюда уходят заказы. Замените ники на реальные.
+const MANAGERS = { fra:"https://t.me/manager_frankfurt", wie:"https://t.me/manager_wiesbaden", gie:"https://t.me/manager_giessen" };
+// Адрес вашего сервера (order_server.py), который принимает заказ и сразу пересылает менеджеру города.
+// Пример: "https://ваш-сервер.com/order". Пока пусто: заказ отправляется кнопкой «Отправить менеджеру».
+const ORDER_ENDPOINT = "";
+const DELIVERY = { post: 4.9, freeFrom: 49 };
+// ========================================
 const SUPPORT_LINK = "https://t.me/your_username"; // <-- замените на ссылку поддержки
 const openSupport = () => { if (tg && tg.openTelegramLink) tg.openTelegramLink(SUPPORT_LINK); else window.open(SUPPORT_LINK, "_blank"); };
 // ===== ТОВАРЫ: редактируйте здесь =====
@@ -249,7 +279,7 @@ const views = {
  cart(){
   const items = Object.entries(S.cart);
   if(!items.length) return `<h1>Корзина</h1>` + empty("Корзина пуста","Выбери жижу — оформим за пару касаний.","Вернуться к товарам");
-  return `<h1>Корзина</h1><div style="height:14px"></div>` + items.map(([id,q])=>{const p=products.find(x=>x.id==id);
+  return `<h1>Корзина</h1><p class="hint" style="margin:6px 2px 14px">Город заказа: <b>${cityName(cartCity())}</b></p>` + items.map(([id,q])=>{const p=products.find(x=>x.id==id);
    return `<div class="line">${pic(p)}<div class="mid"><div class="name">${p.name}</div><div class="sub" style="font-weight:400;color:var(--mute)">${cityName(p.city)}</div><div class="sub">${money(p.price*q)}</div></div>
    <div class="qty"><button data-dec="${id}">−</button><b>${q}</b><button data-add="${id}">+</button></div></div>`}).join("")
    + `<div class="total"><span>Итого</span><span>${money(cartSum())}</span></div><button class="btn" style="width:100%" id="order">Оформить заказ</button>`;
@@ -257,7 +287,7 @@ const views = {
  profile(){
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
   const list = S.orders.map(o=>{const c=o.status==="cancel";return `<div class="line" style="display:block${c?";opacity:.6":""}"><div class="row"><b>Заказ №${o.n}</b><span class="sub" style="margin:0">${o.date}</span></div>
-   <div class="sub" style="margin:6px 0 0">${o.items.map(i=>i.name+" × "+i.qty).join(", ")}</div>
+   <div class="sub" style="margin:6px 0 0">${o.city?cityName(o.city)+": ":""}${o.items.map(i=>i.name+" × "+i.qty).join(", ")}</div>
    <div class="row" style="margin-top:10px"><span class="st ${c?"no":"ok"}">${c?"Отменён":"Оформлен"}</span><b>${money(o.total)}</b></div>
    ${c?"":`<button class="cancel" data-cancel="${o.n}">Отменить заказ</button>`}</div>`}).join("");
   return `<h1>${u?u.first_name:"Профиль"}</h1><h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
@@ -266,10 +296,129 @@ const views = {
 };
 const tabs = [["home","🏠","Главная"],["catalog","▦","Каталог"],["cities","📍","Города"],["cart","🛒","Корзина"],["profile","👤","Профиль"]];
 
+const cartCity = () => { const ids = Object.keys(S.cart); return ids.length ? products.find(p=>p.id==ids[0]).city : null };
+function addToCart(id){ S.cart[id]=(S.cart[id]||0)+1; toast("В корзине, босс"); try{ if(tg&&tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light") }catch(e){} render(); }
+function tryAdd(id){
+  const p = products.find(x=>x.id===id), cc = cartCity();
+  if(cc && cc!==p.city){
+    const q = "В корзине товары из города "+cityName(cc)+". Очистить корзину и добавить товар из города "+cityName(p.city)+"?";
+    const go = () => { S.cart = {}; addToCart(id) };
+    if(tg && tg.showConfirm) tg.showConfirm(q, ok=>{ if(ok) go() }); else if(confirm(q)) go();
+    return;
+  }
+  addToCart(id);
+}
+const payName = {cash:"Наличные",transfer:"Перевод",crypto:"Крипта"};
+const shipCost = () => S.co && S.co.delivery==="post" && cartSum()<DELIVERY.freeFrom ? DELIVERY.post : 0;
+function switchCity(cid){
+  const c = S.co; if(cid===c.city) return;
+  const next = {}; let lost = 0;
+  Object.entries(S.cart).forEach(([id,q])=>{
+    const p = products.find(x=>x.id==id);
+    const m = products.find(x=>x.city===cid && x.cat===p.cat && x.name===p.name);
+    if(m) next[m.id]=(next[m.id]||0)+q; else lost++;
+  });
+  if(!Object.keys(next).length) return toast("В этом городе нет таких товаров");
+  S.cart = next; c.city = cid;
+  if(lost) toast("Часть товаров недоступна в этом городе");
+  coRender(); render();
+}
+const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+function openCheckout(){
+  const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  S.co = {city:cartCity(),step:1,delivery:"pickup",addr:"",name:"",ctype:"tg",contact:u&&u.username?"@"+u.username:"",comment:"",pay:"cash",done:null};
+  coRender();
+}
+function orderText(o){
+  const u = o.user || {};
+  return ["🆕 Заказ №"+o.n+" · "+cityName(o.city),
+   "Клиент: ID "+(u.id||"неизвестен (открыто вне Telegram)")+(u.username?" · @"+u.username:"")+(u.first_name?" · "+u.first_name:""),
+   "", ...o.items.map(i=>"• "+i.name+" × "+i.qty), "",
+   o.delivery==="post"?"Доставка: "+o.addr:"Самовывоз", "Оплата: "+payName[o.pay], "Итого: "+money(o.total),
+   "Контакт: "+o.contact, o.name?"Имя: "+o.name:undefined, o.comment?"Комментарий: "+o.comment:undefined].filter(x=>x!==undefined&&x!==null).join("\n");
+}
+function sendToManager(o){
+  const url = MANAGERS[o.city]+"?text="+encodeURIComponent(orderText(o));
+  if(tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url,"_blank");
+}
+async function submitOrder(){
+  const c = S.co; if(c.sending) return;
+  const city = c.city, ship = shipCost(), u = tgUser();
+  const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:cartSum()+ship, pay:c.pay,
+    items:Object.entries(S.cart).map(([id,q])=>({name:products.find(p=>p.id==id).name,qty:q})),
+    name:c.name, contact:(c.ctype==="tg"?"Telegram ":"Тел. ")+c.contact, comment:c.comment,
+    user:u?{id:u.id,username:u.username||"",first_name:u.first_name||""}:null,
+    date:new Date().toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})};
+  o.text = orderText(o);
+  if(ORDER_ENDPOINT){
+    c.sending = true; coRender();
+    try{
+      const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,initData:tg?tg.initData:""})});
+      o.sent = r.ok;
+    }catch(e){ o.sent = false }
+    c.sending = false;
+  }
+  S.orders.unshift(o); save(); S.cart = {};
+  c.done = o.n; c.order = o; coRender(); render();
+}
+function coRender(){
+  const c = S.co, el = $("#co");
+  document.body.style.overflow = c ? "hidden" : "";
+  el.className = c ? "co on" : "";
+  if(!c){ el.innerHTML = ""; return }
+  if(c.done){
+    el.innerHTML = `<div class="bd" data-coclose></div><div class="sh"><div class="grab"></div><div class="done"><div class="okc">✓</div>
+     <div class="ct" style="font-size:30px">Заказ принят</div><p>Номер <b>№${c.done}</b></p>
+     <p class="hint">${c.order.sent?"Заказ отправлен менеджеру города "+cityName(c.order.city)+". Он напишет тебе лично и подтвердит заказ.":(ORDER_ENDPOINT?"Не удалось отправить автоматически. Нажми кнопку ниже, чтобы отправить менеджеру вручную.":"Осталось отправить заказ менеджеру города "+cityName(c.order.city)+" — нажми кнопку ниже.")}</p>
+     ${c.order.sent?"":`<button class="btn" style="width:100%;margin-bottom:10px" data-cosend>Отправить менеджеру</button>`}
+     <button class="btn ghost" style="width:100%" data-cohome>На главную</button></div></div>`;
+    return;
+  }
+  const ship = shipCost();
+  let rows = Object.entries(S.cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return `<div class="r"><span>${p.name} · ${q} шт</span><b>${money(p.price*q)}</b></div>`}).join("");
+  if(c.delivery==="post") rows += `<div class="r"><span>Доставка</span><b>${ship?money(ship):"бесплатно"}</b></div>`;
+  const total = cartSum()+ship;
+  const seg = (key,opts) => `<div class="seg">${opts.map(([v,l])=>`<button class="${c[key]===v?"on":""}" data-co="${key}:${v}">${l}</button>`).join("")}</div>`;
+  const titles = {1:"Доставка",2:"Контакты",3:"Оплата"};
+  let body = "";
+  if(c.step===1) body = `<div class="stl" style="margin:0 2px 8px">Город</div>` + seg("city",cities.map(x=>[x.id,x.name])) + seg("delivery",[["pickup","Самовывоз"],["post","Доставка"]]) +
+    (c.delivery==="post" ? `<input class="inp" data-f="addr" placeholder="Адрес доставки" value="${c.addr.replace(/"/g,"&quot;")}"><p class="hint">Доставка — ${money(DELIVERY.post)}, бесплатно от ${money(DELIVERY.freeFrom)}.</p>` : `<p class="hint">Самовывоз: адрес и время подскажет менеджер.</p>`) +
+    `<button class="btn" style="width:100%" data-costep="2">Дальше</button>`;
+  if(c.step===2) body = `<input class="inp" data-f="name" placeholder="Имя (не обязательно)" value="${c.name.replace(/"/g,"&quot;")}">` +
+    seg("ctype",[["phone","Телефон"],["tg","Telegram"]]) +
+    `<input class="inp" data-f="contact" placeholder="${c.ctype==="tg"?"@username":"+49 …"}" value="${c.contact.replace(/"/g,"&quot;")}">
+     <textarea class="inp" data-f="comment" placeholder="Комментарий к заказу (не обязательно)">${c.comment}</textarea>
+     <button class="btn" style="width:100%" data-costep="3">Дальше</button><button class="bk" data-costep="1">Назад</button>`;
+  if(c.step===3) body = seg("pay",[["cash","Наличные"],["transfer","Перевод"],["crypto","Крипта"]]) +
+    `<p class="hint">${{cash:"Оплата наличными при получении. Приготовь сумму без сдачи, если можешь.",transfer:"Реквизиты для перевода пришлёт менеджер после подтверждения.",crypto:"Адрес кошелька и сумму пришлёт менеджер после подтверждения."}[c.pay]}</p>
+     <button class="btn" style="width:100%" data-costep="send">${c.sending?"Отправляем…":"Подтвердить · "+money(total)}</button><button class="bk" data-costep="2">Назад</button>`;
+  el.innerHTML = `<div class="bd" data-coclose></div><div class="sh"><div class="grab"></div>
+   <div class="sum">${rows}<div class="r t"><span>Итого</span><b>${money(total)}</b></div></div>
+   <div class="stp"><div class="ring" style="--p:${c.step*33.4}"><span>${c.step}<small>из 3</small></span></div><span class="stl">Шаг ${c.step} из 3</span></div>
+   <div class="ct">${titles[c.step]}</div>${body}</div>`;
+}
+document.addEventListener("input",e=>{ const f=e.target.dataset&&e.target.dataset.f; if(f&&S.co) S.co[f]=e.target.value });
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-co],[data-costep],[data-coclose],[data-cosend],[data-cohome]"); if(!t||!S.co) return;
+  const d=t.dataset, c=S.co;
+  if(d.co){ const [k,v]=d.co.split(":"); if(k==="city"){ switchCity(v); return } c[k]=v; if(k==="ctype") c.contact=""; coRender(); }
+  else if(d.coclose!==undefined){ S.co=null; coRender(); }
+  else if(d.cosend!==undefined){ sendToManager(c.order) }
+  else if(d.cohome!==undefined){ S.co=null; S.tab="home"; coRender(); render(); window.scrollTo(0,0) }
+  else if(d.costep){
+    if(d.costep==="send"){ submitOrder(); return }
+    const to=+d.costep;
+    if(to>c.step){
+      if(c.step===1 && c.delivery==="post" && !c.addr.trim()) return toast("Укажите адрес");
+      if(c.step===2 && !c.contact.trim()) return toast("Укажите "+(c.ctype==="tg"?"Telegram":"телефон"));
+    }
+    c.step=to; coRender();
+  }
+});
 function sheet(){
   const p = products.find(x=>x.id===S.detail), el = $("#sheet");
   try{ if(tg&&tg.BackButton){ p?tg.BackButton.show():tg.BackButton.hide() } }catch(e){}
-  document.body.style.overflow = p ? "hidden" : "";
+  document.body.style.overflow = (p||S.co) ? "hidden" : "";
   el.className = p ? "on" : "";
   if(!p){ el.innerHTML = ""; return }
   const row = (k,v) => v ? `<div class="spec"><span>${k}</span><b>${v}</b></div>` : "";
@@ -284,7 +433,7 @@ function render(){
   $("#nav").innerHTML = tabs.map(([k,i,l])=>`<button class="${S.tab===k?"on":""}" data-go="${k}"><i>${i}</i>${l}${k==="cart"&&cartCount()?`<em>${cartCount()}</em>`:""}</button>`).join("");
   const q=$("#q"); if(q) q.oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)};
   const s=$("#sort"); if(s) s.onchange=e=>{S.sort=e.target.value;render()};
-  const o=$("#order"); if(o) o.onclick=order;
+  const o=$("#order"); if(o) o.onclick=openCheckout;
   sheet();
 }
 function cancelOrder(n){
@@ -303,19 +452,10 @@ document.addEventListener("click",e=>{
   else if(d.support!==undefined){openSupport();return}
   else if(d.open!==undefined){S.open=d.open||null;window.scrollTo(0,0)}
   else if(d.cat) S.cat=d.cat;
-  else if(d.add){S.cart[d.add]=(S.cart[d.add]||0)+1;toast("В корзине, босс");if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light")}
+  else if(d.add){tryAdd(+d.add);return}
   else if(d.dec){if(--S.cart[d.dec]<=0) delete S.cart[d.dec]}
   render();
 });
-function order(){
-  const items = Object.entries(S.cart).map(([id,q])=>({id:+id,name:(x=>x.name+" ("+cityName(x.city)+")")(products.find(p=>p.id==id)),qty:q}));
-  const total = cartSum();
-  S.orders.unshift({n:(S.orders[0]?S.orders[0].n:0)+1,date:new Date().toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),items:items.map(i=>({name:i.name,qty:i.qty})),total});
-  save(); S.cart = {};
-  if(tg && tg.sendData){ tg.sendData(JSON.stringify({items,total})); }
-  else { alert("Заказ оформлен (тест вне Telegram)"); }
-  S.tab = "profile"; window.scrollTo(0,0); render();
-}
 render();
 const t0 = performance.now();
 (function progress(){
