@@ -155,11 +155,14 @@ textarea.inp{min-height:90px;resize:none}.inp:focus{border-color:var(--acc);outl
 .ghost{background:none;border:1.5px solid var(--acc);box-shadow:none;color:#fff}
 .done{text-align:center;padding:8px 0 2px}.done p{margin:4px 0}
 .okc{width:110px;height:110px;margin:10px auto 14px;border-radius:50%;border:1.5px solid var(--acc);display:grid;place-items:center;font-size:48px;color:var(--acc);text-shadow:0 0 16px var(--acc);background:radial-gradient(circle,#5a0d16,transparent 70%)}
+#pat{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.32;background-repeat:repeat;background-size:240px 240px}
+.empty .mas{margin:0 auto}
 </style>
 </head>
 <body>
 <div id="splash"><div class="mw sp"><img id="spimg" alt="Dark Puff"><span class="wm">DARK PUFF</span></div><div class="pod"><span class="tip"></span><div class="pbody"><i class="fillp"></i><b class="pct">0%</b></div><span class="led"></span><u class="pf"></u><u class="pf"></u><u class="pf"></u></div><p>Загрузка…</p></div>
 <div class="smoke"><i></i><i></i><i></i></div>
+<div id="pat"></div>
 <main id="app"></main>
 <nav id="nav"></nav>
 <div id="sheet"></div>
@@ -179,7 +182,7 @@ const MANAGERS = { fra:"https://t.me/manager_frankfurt", wie:"https://t.me/manag
 const ORDER_ENDPOINT = "https://roy555.pythonanywhere.com/order";
 const DELIVERY = { post: 4.9, freeFrom: 49 };
 // ========================================
-const SUPPORT_LINK = "https://t.me/dark_ceo24"; // <-- замените на ссылку поддержки
+const SUPPORT_LINK = "https://t.me/your_username"; // <-- замените на ссылку поддержки
 const openSupport = () => { if (tg && tg.openTelegramLink) tg.openTelegramLink(SUPPORT_LINK); else window.open(SUPPORT_LINK, "_blank"); };
 // ===== ТОВАРЫ: редактируйте здесь =====
 // image: путь к фото (необязательно). Без фото рисуется заглушка.
@@ -428,12 +431,45 @@ function sheet(){
    <p class="desc">${p.desc||""}</p><button class="btn" style="width:100%" data-add="${p.id}">В корзину</button></div>`;
 }
 try{ if(tg&&tg.BackButton) tg.BackButton.onClick(()=>{S.detail=null;render()}) }catch(e){}
+// ===== Фоновые узоры (линиями, без заливки) для каждой вкладки =====
+const ICONS = {
+ mas:'<g transform="translate(-50 -50)"><path d="M50 8C26 8 12 28 14 50C15 64 19 72 23 84L30 77L37 88L44 78L50 90L56 78L63 88L70 77L77 84C81 72 85 64 86 50C88 28 74 8 50 8Z"/><path d="M26 36L44 44L42 53L29 50Z"/><path d="M74 36L56 44L58 53L71 50Z"/><path d="M43 68Q50 73 57 68"/><path d="M38 14L42 4M62 14L58 4"/><rect x="4" y="54" width="7" height="22" rx="3" transform="rotate(14 7 65)"/><path d="M9 50C2 42 14 37 8 29C4 23 12 17 8 9"/></g>',
+ puff:'<circle r="8"/><circle cx="14" cy="-6" r="5"/><circle cx="-12" cy="-10" r="3"/>',
+ bottle:'<rect x="-14" y="-10" width="28" height="44" rx="8"/><rect x="-8" y="-24" width="16" height="14" rx="3"/><rect x="-8" y="4" width="16" height="16" rx="3"/>',
+ pod:'<rect x="-14" y="-28" width="28" height="56" rx="12"/><rect x="-8" y="-38" width="16" height="10" rx="3"/><circle cx="0" cy="12" r="6"/>',
+ pack:'<rect x="-18" y="-22" width="36" height="44" rx="4"/><path d="M-18 -8H18"/><path d="M-8 -22V-34M0 -22V-30M8 -22V-34"/>',
+ tower:'<rect x="-12" y="-30" width="24" height="60"/><path d="M-12 -30L0 -46L12 -30"/><path d="M-6 -16H6M-6 -6H6M-6 4H6M-6 14H6"/>',
+ tower2:'<rect x="-10" y="-20" width="20" height="50"/><path d="M-10 -20H10M0 -20V-36"/><path d="M-4 -8V18M4 -8V18"/>',
+ pin:'<path d="M0 -24C-12 -24 -18 -14 -18 -6C-18 10 0 28 0 28C0 28 18 10 18 -6C18 -14 12 -24 0 -24Z"/><circle cx="0" cy="-6" r="6"/>',
+ basket:'<path d="M-26 -4H26L20 26H-20Z"/><path d="M-16 -4L-8 -24H8L16 -4"/><path d="M-8 4V18M0 4V18M8 4V18"/>',
+ bag:'<path d="M-18 -14H18L22 28H-22Z"/><path d="M-9 -14V-22C-9 -30 9 -30 9 -22V-14"/>',
+ user:'<circle cx="0" cy="-12" r="11"/><path d="M-24 28C-24 6 24 6 24 28"/>',
+ receipt:'<path d="M-16 -28H16V28L10 23L4 28L-2 23L-8 28L-14 23L-16 28Z"/><path d="M-8 -16H8M-8 -6H8M-8 4H2"/>'
+};
+const PATTERNS = {
+ home:   [["mas",62,68,-8,1.05],["mas",180,186,9,1.05],["puff",190,48,0,1],["puff",55,195,0,.9]],
+ catalog:[["bottle",50,50,-14,1],["pod",150,48,12,1],["pack",200,150,-10,1],["pod",55,150,10,1],["pack",125,200,-12,1],["bottle",140,125,8,.8]],
+ cities: [["tower",50,70,0,1],["pin",150,58,8,1],["tower2",190,170,0,1],["pin",60,185,-8,1],["tower",125,140,0,.7]],
+ cart:   [["basket",55,60,-10,1],["bag",165,55,12,1],["basket",185,170,8,.9],["bag",65,175,-8,.9],["basket",125,125,0,.6]],
+ profile:[["user",55,60,0,1],["receipt",165,60,8,1],["receipt",60,175,-8,1],["user",170,175,0,1]]
+};
+const patCache = {};
+function setPat(){
+  const key = PATTERNS[S.tab] ? S.tab : "home";
+  if(!patCache[key]){
+    const g = PATTERNS[key].map(([n,x,y,r,s])=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})">${ICONS[n]}</g>`).join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><g fill="none" stroke="#ff2233" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${g}</g></svg>`;
+    patCache[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+  $("#pat").style.backgroundImage = patCache[key];
+}
 function render(){
   $("#app").innerHTML = views[S.tab]();
   $("#nav").innerHTML = tabs.map(([k,i,l])=>`<button class="${S.tab===k?"on":""}" data-go="${k}"><i>${i}</i>${l}${k==="cart"&&cartCount()?`<em>${cartCount()}</em>`:""}</button>`).join("");
   const q=$("#q"); if(q) q.oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)};
   const s=$("#sort"); if(s) s.onchange=e=>{S.sort=e.target.value;render()};
   const o=$("#order"); if(o) o.onclick=openCheckout;
+  setPat();
   sheet();
 }
 function cancelOrder(n){
