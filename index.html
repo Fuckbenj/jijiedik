@@ -186,7 +186,7 @@ const MANAGERS = { fra:"https://t.me/manager_frankfurt", wie:"https://t.me/manag
 const ORDER_ENDPOINT = "https://roy555.pythonanywhere.com/order";
 const DELIVERY = { post: 4.9, freeFrom: 49 };
 // ========================================
-const SUPPORT_LINK = "https://t.me/dark_ceo24"; // <-- замените на ссылку поддержки
+const SUPPORT_LINK = "https://t.me/dark_ceo24"; // ссылка поддержки
 const openSupport = () => { if (tg && tg.openTelegramLink) tg.openTelegramLink(SUPPORT_LINK); else window.open(SUPPORT_LINK, "_blank"); };
 // ===== ТОВАРЫ: редактируйте здесь =====
 // image: путь к фото (необязательно). Без фото рисуется заглушка.
@@ -231,6 +231,7 @@ const S = {tab:"home", cat:"Всё", q:"", sort:"asc", cart:{}, open:null, detai
 const load = () => { try { return JSON.parse(localStorage.getItem('dp_orders')||'[]') } catch(e){ return [] } };
 const save = () => { try { localStorage.setItem('dp_orders', JSON.stringify(S.orders)) } catch(e){} };
 S.orders = load();
+setTimeout(()=>{ pruneCancelled(); save(); }, 0);
 const money = n => n.toFixed(2).replace(".", ",") + " " + currency;
 const cartCount = () => Object.values(S.cart).reduce((a,b)=>a+b,0);
 const cartSum = () => Object.entries(S.cart).reduce((a,[id,q])=>a+products.find(p=>p.id==id).price*q,0);
@@ -476,8 +477,13 @@ function render(){
   setPat();
   sheet();
 }
+const MAX_CANCELLED = 4; // сколько отменённых заказов хранить в профиле
+function pruneCancelled(){
+  const c = S.orders.filter(o=>o.status==="cancel").sort((a,b)=>(a.cancelledAt||0)-(b.cancelledAt||0));
+  while(c.length > MAX_CANCELLED){ const old = c.shift(); S.orders = S.orders.filter(o=>o!==old); }
+}
 function cancelOrder(n){
-  const go = () => { const o=S.orders.find(x=>x.n===n); if(o){ o.status="cancel"; save(); render(); toast("Заказ №"+n+" отменён"); } };
+  const go = () => { const o=S.orders.find(x=>x.n===n); if(o){ o.status="cancel"; o.cancelledAt=Date.now(); pruneCancelled(); save(); render(); toast("Заказ №"+n+" отменён"); } };
   const q = "Отменить заказ №"+n+"?";
   if(tg && tg.showConfirm) tg.showConfirm(q, ok => { if(ok) go(); }); else if(confirm(q)) go();
 }
