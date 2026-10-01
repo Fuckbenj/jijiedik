@@ -10,11 +10,13 @@
 :root{--bg:#070304;--card:#140a0c;--line:#3a1216;--ink:#f6ecec;--mute:#a58a8e;--acc:#ff2233;--acc2:#b0001a;
 --drip:'Rubik Spray Paint','Russo One',Impact,sans-serif;--body:'Inter',-apple-system,'Segoe UI',sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 body{margin:0;background:radial-gradient(420px 320px at 100% 0,#4a0a14 0,transparent 70%),radial-gradient(380px 300px at 0 100%,#3a0810 0,transparent 70%),var(--bg);
 background-attachment:fixed;color:var(--ink);font:400 15px/1.45 var(--body);min-height:100vh;
 padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
 main{max-width:560px;margin:0 auto}
 h1{font:400 30px/1.1 var(--drip);margin:0;text-transform:uppercase;color:#fff;text-shadow:0 0 14px #ff223388}
+.back{display:inline-block;color:#ff6b77;font-weight:600;text-decoration:none;padding:2px 0 10px}
 .sub{color:var(--mute);margin:4px 0 14px;font-size:13px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:12px}
 .card.off{opacity:.55}
@@ -37,6 +39,7 @@ a.link{color:#ff6b77;text-decoration:none;font-weight:600}
 </head>
 <body>
 <main>
+  <a class="back" href="./">← В магазин</a>
   <div class="row"><h1>Заказы</h1><button class="refresh" id="refresh" aria-label="Обновить">↻ Обновить</button></div>
   <p class="sub" id="sub">Загрузка…</p>
   <div id="list"></div>
@@ -93,7 +96,12 @@ function card(o){
 }
 
 async function load(p){
-  if (!tg || !tg.initData) { state("Откройте через бота", "Эта страница работает только внутри Telegram, по кнопке в панели менеджера."); $("#sub").textContent = ""; return; }
+  if (!tg || !tg.initData) {
+    state("Откройте через бота", "Telegram не передал данные о вас. Откройте магазин кнопкой SHOP или кнопкой под сообщением бота, затем «Профиль» → «Панель заказов».");
+    const d = el("div","sub", "Диагностика: Telegram " + (tg ? "найден, версия " + tg.version + ", " + tg.platform : "не найден") + ", данные: " + (tg && tg.initData ? tg.initData.length : 0));
+    $("#list").firstChild.append(d);
+    $("#sub").textContent = ""; return;
+  }
   $("#sub").textContent = "Загрузка…";
   try {
     const r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, page: p})});
