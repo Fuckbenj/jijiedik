@@ -107,6 +107,10 @@ body[data-tab="cities"]{background:linear-gradient(165deg,#000 0%,#0b0204 26%,#3
 .limit{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:center;color:var(--mute);font-size:13px}
 .limit p{margin:0 0 12px}.limit b{color:var(--ink)}
 .limit.on{border-color:var(--acc);box-shadow:0 0 18px #ff223344}.limit.on p{color:var(--ink)}
+.brk{display:flex;justify-content:space-between;padding:4px 4px 0;color:var(--mute);font-size:14px}.brk b{color:var(--ink);font-weight:500}
+.brk.save b{color:#6be28d}
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 14px}
+.tiers span{padding:8px 6px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:center;font-size:13px;color:var(--mute)}.tiers b{display:block;color:var(--ink);font-weight:600}
 .back{color:var(--acc);font-weight:600;padding:4px 0 10px}
 .card{cursor:pointer}
 #sheet{position:fixed;inset:0;z-index:8;display:none}#sheet.on{display:block}
@@ -210,17 +214,21 @@ const cities = [
 // Строка товара: [название, описание, цена, цвет, метка, фото]
 // метка: "hit" = хит продаж, "new" = новинка (можно пропустить); фото: "images/1.jpg" (можно пропустить)
 const categories = ["Жижи","Сигареты","Подики"];
+// Цена набора жидкостей: общая сумма за N штук (любых жидкостей в заказе). Остальные товары считаются по своей цене.
+// Здесь для 9 штук стоит 98 € (в вашей таблице её не было); поправьте при необходимости.
+const LIQUID_CAT = "Жижи";
+const LIQUID_TIERS = {1:20, 2:36, 3:51, 4:64, 5:75, 6:84, 7:91, 8:96, 9:98, 10:100};
 const catalog = {
  fra:{
-  "Жижи":[["Жижа 1","30 мл",10,"#ff2233","hit"],["Жижа 2","30 мл",12,"#a855f7","new"]],
+  "Жижи":[["Жижа 1","30 мл",20,"#ff2233","hit"],["Жижа 2","30 мл",20,"#a855f7","new"]],
   "Сигареты":[["Сигареты 1","1 пачка",7,"#ffb020","hit"],["Сигареты 2","1 пачка",8,"#22d3ee"]],
   "Подики":[["Подик 1","Pod-система",25,"#f472b6","hit"],["Подик 2","Pod-система",30,"#4ade80","new",null,{puffs:"8 000 тяг",strength:"50 мг",desc:"Пример описания: яркий вкус, мощный аккумулятор, подзарядка по USB-C."}]]},
  wie:{
-  "Жижи":[["Жижа 1","30 мл",11,"#4ade80","hit"],["Жижа 2","30 мл",9,"#60a5fa","new"]],
+  "Жижи":[["Жижа 1","30 мл",20,"#4ade80","hit"],["Жижа 2","30 мл",20,"#60a5fa","new"]],
   "Сигареты":[["Сигареты 1","1 пачка",7,"#ff2233"],["Сигареты 2","1 пачка",9,"#a855f7","new"]],
   "Подики":[["Подик 1","Pod-система",27,"#fb923c","hit"],["Подик 2","Pod-система",32,"#22d3ee"]]},
  gie:{
-  "Жижи":[["Жижа 1","30 мл",10,"#ff2233","hit"],["Жижа 2","30 мл",14,"#22d3ee","new"]],
+  "Жижи":[["Жижа 1","30 мл",20,"#ff2233","hit"],["Жижа 2","30 мл",20,"#22d3ee","new"]],
   "Сигареты":[["Сигареты 1","1 пачка",8,"#4ade80","hit"],["Сигареты 2","1 пачка",8,"#f472b6"]],
   "Подики":[["Подик 1","Pod-система",26,"#ffb020"],["Подик 2","Pod-система",29,"#60a5fa","new"]]}
 };
@@ -234,7 +242,7 @@ const defaults = {
 };
 const products = []; let _id = 0;
 cities.forEach(c => Object.entries(catalog[c.id]).forEach(([cat,list]) => list.forEach(([name,sub,price,color,tag,image,extra]) =>
-  products.push({...defaults[cat],...(extra||{}),id:++_id,city:c.id,cat,name,sub,price,color,image,hit:tag==="hit",new:tag==="new"}))));
+  products.push({...defaults[cat],...(extra||{}),id:++_id,city:c.id,cat,name,sub,price:cat===LIQUID_CAT?LIQUID_TIERS[1]:price,color,image,hit:tag==="hit",new:tag==="new"}))));
 const cityName = id => cities.find(c=>c.id===id).name;
 // =======================================
 
@@ -248,7 +256,13 @@ S.orders = load();
 setTimeout(()=>{ pruneCancelled(); save(); }, 0);
 const money = n => n.toFixed(2).replace(".", ",") + " " + currency;
 const cartCount = () => Object.values(S.cart).reduce((a,b)=>a+b,0);
-const cartSum = () => Object.entries(S.cart).reduce((a,[id,q])=>a+products.find(p=>p.id==id).price*q,0);
+function totals(){
+  let liqQty = 0, other = 0;
+  Object.entries(S.cart).forEach(([id,q])=>{ const p = products.find(x=>x.id==id); if(p.cat===LIQUID_CAT) liqQty += q; else other += p.price*q; });
+  const liqSum = !liqQty ? 0 : (LIQUID_TIERS[liqQty] !== undefined ? LIQUID_TIERS[liqQty] : liqQty*LIQUID_TIERS[1]);
+  return {liqQty, liqSum, other, sum: liqSum+other, saved: liqQty*LIQUID_TIERS[1]-liqSum};
+}
+const cartSum = () => totals().sum;
 const inCat = p => S.cat==="Всё"||p.cat===S.cat;
 const mas = (cls="mas") => `<div class="mw ${cls}"><img src="${MASCOT}" alt="${SHOP}"><span class="wm">DARK PUFF</span></div>`;
 $("#tim").src = AVATAR;
@@ -267,7 +281,7 @@ function card(p){
   return `<div class="card" data-card="${p.id}">
    ${pic(p)}
    <div class="name">${p.name}</div><div class="sub">${cityName(p.city)} · ${p.sub}</div>
-   <div class="foot"><div><div class="price">${money(p.price)}</div></div>
+   <div class="foot"><div><div class="price">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">чем больше, тем дешевле</div>`:""}</div>
    <button class="add" data-add="${p.id}" aria-label="В корзину">+</button></div></div>`;
 }
 function filtered(){
@@ -302,9 +316,13 @@ const views = {
   const items = Object.entries(S.cart);
   if(!items.length) return `<h1>Корзина</h1>` + empty("Корзина пуста","Выбери жижу — оформим за пару касаний.","Вернуться к товарам");
   return `<h1>Корзина</h1><p class="hint" style="margin:6px 2px 14px">Город заказа: <b>${cityName(cartCity())}</b></p>` + items.map(([id,q])=>{const p=products.find(x=>x.id==id);
-   return `<div class="line">${pic(p)}<div class="mid"><div class="name">${p.name}</div><div class="sub" style="font-weight:400;color:var(--mute)">${cityName(p.city)}</div><div class="sub">${money(p.price*q)}</div></div>
+   return `<div class="line">${pic(p)}<div class="mid"><div class="name">${p.name}</div><div class="sub" style="font-weight:400;color:var(--mute)">${cityName(p.city)}</div><div class="sub">${p.cat===LIQUID_CAT?"":money(p.price*q)}</div></div>
    <div class="qty"><button data-dec="${id}">−</button><b>${q}</b><button data-add="${id}">+</button></div></div>`}).join("")
-   + `<div class="total"><span>Итого</span><span>${money(cartSum())}</span></div><button class="btn" style="width:100%" id="order">Оформить заказ</button>`
+   + (()=>{ const tt = totals(); let h = "";
+     if(tt.liqQty) h += `<div class="brk"><span>Жижи · ${tt.liqQty} шт</span><b>${money(tt.liqSum)}</b></div>`;
+     if(tt.other && tt.liqQty) h += `<div class="brk"><span>Остальное</span><b>${money(tt.other)}</b></div>`;
+     if(tt.saved > 0) h += `<div class="brk save"><span>Экономия на жижах</span><b>−${money(tt.saved)}</b></div>`;
+     return h; })() + `<div class="total"><span>Итого</span><span>${money(cartSum())}</span></div><button class="btn" style="width:100%" id="order">Оформить заказ</button>`
    + `<div class="limit ${cartCount()>=MAX_ITEMS?"on":""}"><p>Товаров в заказе: <b>${cartCount()} из ${MAX_ITEMS}</b>.<br>В одном заказе не больше ${MAX_ITEMS} товаров. Нужно больше? Свяжитесь с менеджером.</p><button class="btn ghost" style="width:100%" data-support>Написать менеджеру</button></div>`;
  },
  profile(){
@@ -399,7 +417,9 @@ function coRender(){
     return;
   }
   const ship = shipCost();
-  let rows = Object.entries(S.cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return `<div class="r"><span>${p.name} · ${q} шт</span><b>${money(p.price*q)}</b></div>`}).join("");
+  const tt = totals();
+  let rows = Object.entries(S.cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return `<div class="r"><span>${p.name} · ${q} шт</span><b>${p.cat===LIQUID_CAT?"":money(p.price*q)}</b></div>`}).join("");
+  if(tt.liqQty) rows += `<div class="r"><span>Жижи, ${tt.liqQty} шт (цена набора)</span><b>${money(tt.liqSum)}</b></div>`;
   if(c.delivery==="post") rows += `<div class="r"><span>Доставка</span><b>${ship?money(ship):"бесплатно"}</b></div>`;
   const total = cartSum()+ship;
   const seg = (key,opts) => `<div class="seg">${opts.map(([v,l])=>`<button class="${c[key]===v?"on":""}" data-co="${key}:${v}">${l}</button>`).join("")}</div>`;
@@ -447,7 +467,7 @@ function sheet(){
   if(!p){ el.innerHTML = ""; return }
   const row = (k,v) => v ? `<div class="spec"><span>${k}</span><b>${v}</b></div>` : "";
   el.innerHTML = `<div class="bd" data-close></div><div class="sh"><button class="x" data-close aria-label="Закрыть">✕</button>${pic(p)}
-   <h1 class="dn">${p.name}</h1><p class="dc">${p.cat} · ${cityName(p.city)}</p><div class="dp">${money(p.price)}</div>
+   <h1 class="dn">${p.name}</h1><p class="dc">${p.cat} · ${cityName(p.city)}</p><div class="dp">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<p class="hint" style="margin-top:-4px">за 1 шт. Чем больше берёте, тем выгоднее (общая цена за набор):</p><div class="tiers">${Object.entries(LIQUID_TIERS).map(([n,s])=>`<span><b>${n} шт</b> ${s} €</span>`).join("")}</div>`:""}
    ${row("Вид",p.sub)}${row("Крепость",p.strength)}${row("Количество тяг",p.puffs)}
    <p class="desc">${p.desc||""}</p><button class="btn" style="width:100%" data-add="${p.id}">В корзину</button></div>`;
 }
