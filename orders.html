@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Заказы · Dark Puff</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Spray+Paint&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#070304;--card:#140a0c;--line:#3a1216;--ink:#f6ecec;--mute:#a58a8e;--acc:#ff2233;--acc2:#b0001a;
+--drip:'Rubik Spray Paint','Russo One',Impact,sans-serif;--body:'Inter',-apple-system,'Segoe UI',sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:radial-gradient(420px 320px at 100% 0,#4a0a14 0,transparent 70%),radial-gradient(380px 300px at 0 100%,#3a0810 0,transparent 70%),var(--bg);
+background-attachment:fixed;color:var(--ink);font:400 15px/1.45 var(--body);min-height:100vh;
+padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
+main{max-width:560px;margin:0 auto}
+h1{font:400 30px/1.1 var(--drip);margin:0;text-transform:uppercase;color:#fff;text-shadow:0 0 14px #ff223388}
+.sub{color:var(--mute);margin:4px 0 14px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:12px}
+.card.off{opacity:.55}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.id{font:400 18px var(--drip);text-transform:uppercase}
+.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:8px;background:#ff223326;color:#ff6b77;white-space:nowrap}
+.badge.no{background:#ffffff14;color:var(--mute)}
+.meta{color:var(--mute);font-size:13px;margin:2px 0 8px}
+.items{margin:8px 0;padding:10px 12px;border-radius:12px;background:#0d0506;border:1px solid var(--line)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.kv span{color:var(--mute)}.kv b{font-weight:500;text-align:right;overflow-wrap:anywhere}
+.total{border-top:1px solid var(--line);margin-top:6px;padding-top:8px}.total b{color:var(--acc);font-size:17px;font-weight:600}
+a.link{color:#ff6b77;text-decoration:none;font-weight:600}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.pager button{flex:1;padding:13px;border-radius:14px;background:var(--acc);color:#fff;border:0;font:600 14px var(--body);text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 18px #ff223366;cursor:pointer}
+.pager button:disabled{background:var(--card);color:var(--mute);box-shadow:none;border:1px solid var(--line);cursor:default}
+.pager span{color:var(--mute);font-size:13px;white-space:nowrap}
+.state{text-align:center;padding:60px 10px;color:var(--mute)}.state b{display:block;color:#fff;font:400 24px var(--drip);margin-bottom:8px;text-transform:uppercase}
+.refresh{background:none;border:1.5px solid var(--line);color:var(--ink);border-radius:12px;padding:8px 14px;font:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <div class="row"><h1>Заказы</h1><button class="refresh" id="refresh" aria-label="Обновить">↻ Обновить</button></div>
+  <p class="sub" id="sub">Загрузка…</p>
+  <div id="list"></div>
+  <div class="pager" id="pager" hidden>
+    <button id="prev">‹ Назад</button><span id="pg"></span><button id="next">Дальше ›</button>
+  </div>
+</main>
+
+<script>
+// Адрес вашего сервера (тот же, что в магазине, но заканчивается на /panel)
+const API = "https://roy555.pythonanywhere.com/panel";
+
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#070304"); tg.setBackgroundColor("#070304"); } catch (e) {} }
+
+const $ = s => document.querySelector(s);
+const money = n => (Number(n) || 0).toFixed(2).replace(".", ",") + " €";
+let page = 1, pages = 1;
+
+// Безопасное создание элементов: данные клиента вставляются только как текст
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function kv(k, v){ const r = el("div","kv"); r.append(el("span","",k), el("b","",v)); return r; }
+
+function state(title, text){
+  const l = $("#list"); l.replaceChildren();
+  const d = el("div","state"); d.append(el("b","",title), document.createTextNode(text)); l.append(d);
+  $("#pager").hidden = true;
+}
+
+function card(o){
+  const c = el("div","card" + (o.status === "cancelled" ? " off" : ""));
+  const top = el("div","row");
+  top.append(el("div","id","Заказ №" + o.id), el("span","badge" + (o.status === "cancelled" ? " no" : ""), o.status === "cancelled" ? "Отменён" : "Новый"));
+  c.append(top, el("div","meta", o.city + " · " + o.when));
+
+  const cl = o.client || {};
+  const who = (cl.first_name || "Клиент") + (cl.username ? " · @" + cl.username : "");
+  const whoRow = el("div","kv"); whoRow.append(el("span","","Клиент"));
+  if (cl.username) { const a = el("a","link","@" + cl.username); a.href = "https://t.me/" + encodeURIComponent(cl.username);
+    a.addEventListener("click", e => { if (tg && tg.openTelegramLink) { e.preventDefault(); tg.openTelegramLink(a.href); } });
+    const b = el("b","", (cl.first_name ? cl.first_name + " · " : "")); b.append(a); whoRow.append(b); }
+  else whoRow.append(el("b","", who));
+  c.append(whoRow, kv("ID клиента", String(cl.id)));
+
+  const box = el("div","items");
+  (o.items || []).forEach(i => box.append(kv(i.name, "× " + i.qty)));
+  c.append(box);
+
+  c.append(kv("Получение", o.delivery === "post" ? "Доставка: " + (o.addr || "") : "Самовывоз"), kv("Оплата", o.pay || ""), kv("Контакт", o.contact || ""));
+  if (o.name) c.append(kv("Имя", o.name));
+  if (o.comment) c.append(kv("Комментарий", o.comment));
+  const t = kv("Итого", money(o.total)); t.classList.add("total"); c.append(t);
+  return c;
+}
+
+async function load(p){
+  if (!tg || !tg.initData) { state("Откройте через бота", "Эта страница работает только внутри Telegram, по кнопке в панели менеджера."); $("#sub").textContent = ""; return; }
+  $("#sub").textContent = "Загрузка…";
+  try {
+    const r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, page: p})});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 403) { state("Нет доступа", "Этот раздел только для менеджеров."); $("#sub").textContent = ""; return; }
+    if (!r.ok || !j.ok) throw new Error("server");
+    page = j.page; pages = j.pages;
+    $("#sub").textContent = j.cities.join(", ") + " · всего заказов: " + j.count;
+    if (!j.items.length) { state("Заказов пока нет", "Новые заказы появятся здесь."); return; }
+    $("#list").replaceChildren(...j.items.map(card));
+    $("#pager").hidden = pages <= 1;
+    $("#pg").textContent = page + " / " + pages;
+    $("#prev").disabled = page <= 1; $("#next").disabled = page >= pages;
+  } catch (e) {
+    state("Не удалось загрузить", "Проверьте интернет и нажмите «Обновить».");
+    $("#sub").textContent = "";
+  }
+}
+
+$("#prev").onclick = () => { load(page - 1); window.scrollTo(0, 0); };
+$("#next").onclick = () => { load(page + 1); window.scrollTo(0, 0); };
+$("#refresh").onclick = () => load(page);
+load(1);
+</script>
+</body>
+</html>
