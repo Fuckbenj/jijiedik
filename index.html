@@ -88,7 +88,7 @@ nav button i{display:block;font-style:normal;font-size:20px}
 nav button.on{background:var(--acc);color:#fff;font-weight:600;box-shadow:0 0 18px #ff223388}
 nav em{position:absolute;top:2px;right:16%;background:#fff;color:var(--acc2);font-style:normal;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px}
 .toast{z-index:20;position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#1c0709;border:1px solid var(--acc);
-padding:6px 16px 6px 6px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;display:flex;align-items:center;gap:10px;z-index:9;white-space:nowrap}
+padding:6px 16px 6px 6px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;display:flex;align-items:center;gap:10px;z-index:9;white-space:normal;width:max-content;max-width:calc(100vw - 28px);line-height:1.3}
 .toast img{width:30px;height:30px;border-radius:50%}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -104,6 +104,9 @@ body[data-tab="cities"]{background:linear-gradient(165deg,#000 0%,#0b0204 26%,#3
 .city::before{content:"";position:absolute;inset:0 50px 0 0;background-image:var(--cp);background-size:120px 120px;background-position:right center;opacity:.6;pointer-events:none;
 -webkit-mask-image:linear-gradient(90deg,transparent 42%,#000 100%);mask-image:linear-gradient(90deg,transparent 42%,#000 100%)}
 .city>*{position:relative}
+.limit{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:center;color:var(--mute);font-size:13px}
+.limit p{margin:0 0 12px}.limit b{color:var(--ink)}
+.limit.on{border-color:var(--acc);box-shadow:0 0 18px #ff223344}.limit.on p{color:var(--ink)}
 .back{color:var(--acc);font-weight:600;padding:4px 0 10px}
 .card{cursor:pointer}
 #sheet{position:fixed;inset:0;z-index:8;display:none}#sheet.on{display:block}
@@ -189,6 +192,7 @@ const MANAGERS = { fra:"https://t.me/manager_frankfurt", wie:"https://t.me/manag
 // Адрес вашего сервера (order_server.py), который принимает заказ и сразу пересылает менеджеру города.
 // Пример: "https://ваш-сервер.com/order". Пока пусто: заказ отправляется кнопкой «Отправить менеджеру».
 const ORDER_ENDPOINT = "https://roy555.pythonanywhere.com/order";
+const MAX_ITEMS = 10;   // максимум товаров (штук) в одном заказе; больше только через менеджера
 const DELIVERY = { post: 4.9, freeFrom: 49 };
 // ========================================
 const SUPPORT_LINK = "https://t.me/dark_ceo24"; // ссылка поддержки
@@ -300,7 +304,8 @@ const views = {
   return `<h1>Корзина</h1><p class="hint" style="margin:6px 2px 14px">Город заказа: <b>${cityName(cartCity())}</b></p>` + items.map(([id,q])=>{const p=products.find(x=>x.id==id);
    return `<div class="line">${pic(p)}<div class="mid"><div class="name">${p.name}</div><div class="sub" style="font-weight:400;color:var(--mute)">${cityName(p.city)}</div><div class="sub">${money(p.price*q)}</div></div>
    <div class="qty"><button data-dec="${id}">−</button><b>${q}</b><button data-add="${id}">+</button></div></div>`}).join("")
-   + `<div class="total"><span>Итого</span><span>${money(cartSum())}</span></div><button class="btn" style="width:100%" id="order">Оформить заказ</button>`;
+   + `<div class="total"><span>Итого</span><span>${money(cartSum())}</span></div><button class="btn" style="width:100%" id="order">Оформить заказ</button>`
+   + `<div class="limit ${cartCount()>=MAX_ITEMS?"on":""}"><p>Товаров в заказе: <b>${cartCount()} из ${MAX_ITEMS}</b>.<br>В одном заказе не больше ${MAX_ITEMS} товаров. Нужно больше? Свяжитесь с менеджером.</p><button class="btn ghost" style="width:100%" data-support>Написать менеджеру</button></div>`;
  },
  profile(){
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -315,7 +320,8 @@ const views = {
 const tabs = [["home","🏠","Главная"],["catalog","▦","Каталог"],["cities","📍","Города"],["cart","🛒","Корзина"],["profile","👤","Профиль"]];
 
 const cartCity = () => { const ids = Object.keys(S.cart); return ids.length ? products.find(p=>p.id==ids[0]).city : null };
-function addToCart(id){ S.cart[id]=(S.cart[id]||0)+1; toast("В корзине, босс"); try{ if(tg&&tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light") }catch(e){} render(); }
+function addToCart(id){
+  if(cartCount() >= MAX_ITEMS){ toast("Максимум "+MAX_ITEMS+" товаров в заказе. Нужно больше? Свяжитесь с менеджером"); render(); return; } S.cart[id]=(S.cart[id]||0)+1; toast("В корзине, босс"); try{ if(tg&&tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light") }catch(e){} render(); }
 function tryAdd(id){
   const p = products.find(x=>x.id===id), cc = cartCity();
   if(cc && cc!==p.city){
