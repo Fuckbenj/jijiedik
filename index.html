@@ -233,9 +233,9 @@ const catalog = {
     puffy("Energy Drink","#3ad0ff",1), puffy("Watermelon Bubble Gum","#ff6f91",2), puffy("Grape Melon","#a870ff",2),
     puffy("Apple Grape Blueberry","#6a7dff",2), puffy("Berry Cherry Cocktail","#ff2a55",2), puffy("Cranberry Grape","#c0286b",2)]},
  wie:{
-  "Жижи":[["Жижа 1","30 мл",20,"#4ade80","hit"],["Жижа 2","30 мл",20,"#60a5fa","new"]]},
+  "Жижи":[]},   // пока пусто: добавьте строки так же, как у Франкфурта
  gie:{
-  "Жижи":[["Жижа 1","30 мл",20,"#ff2233","hit"],["Жижа 2","30 мл",20,"#22d3ee","new"]]}
+  "Жижи":[]}
 };
 // Характеристики по умолчанию для категории (показываются в описании товара).
 // У отдельного товара можно задать свои: добавьте 7-м элементом {puffs:"8 000 тяг", strength:"50 мг", desc:"Текст"}
@@ -297,8 +297,9 @@ const views = {
   return `<div class="top"><div class="brand"><img class="av" src="${AVATAR}" alt=""><h1 class="logo">Dark Puff</h1></div><span class="age">18+</span></div>
   <div class="hero">${mas()}</div>
   ${chips()}
-  <h2>Хиты продаж</h2><div class="hs">${products.filter(p=>p.hit&&inCat(p)).map(card).join("")}</div>
-  <h2>Новинки</h2><div class="hs">${products.filter(p=>p.new&&inCat(p)).map(card).join("")}</div>`;
+  ${(()=>{ const hits = products.filter(p=>p.hit&&inCat(p)), news = products.filter(p=>p.new&&inCat(p));
+    if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>Все жижи</h2><div class="hs">${all.map(card).join("")}</div>` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
+    return (hits.length?`<h2>Хиты продаж</h2><div class="hs">${hits.map(card).join("")}</div>`:"") + (news.length?`<h2>Новинки</h2><div class="hs">${news.map(card).join("")}</div>`:""); })()}`;
  },
  catalog(){
   const list = filtered();
@@ -309,9 +310,9 @@ const views = {
   <div class="grid">${list.map(card).join("")||'<p class="sub">Ничего не найдено</p>'}</div>`;
  },
  cities(){
-  if(!S.open) return `<h1>Города</h1><div style="height:14px"></div>` + cities.map(c=>`<button class="city" data-open="${c.id}"><span><b>${c.name}</b><small>${products.filter(p=>p.city===c.id).length} товаров в каталоге</small></span><i>›</i></button>`).join("");
+  if(!S.open) return `<h1>Города</h1><div style="height:14px"></div>` + cities.map(c=>`<button class="city" data-open="${c.id}"><span><b>${c.name}</b><small>${products.filter(p=>p.city===c.id).length ? products.filter(p=>p.city===c.id).length+" товаров в каталоге" : "Скоро в наличии"}</small></span><i>›</i></button>`).join("");
   const list = products.filter(p=>p.city===S.open&&inCat(p));
-  return `<button class="back" data-open="">← Города</button><h1>${cityName(S.open)}</h1>${chips()}<div style="height:8px"></div><div class="grid">${list.map(card).join("")}</div>`;
+  return `<button class="back" data-open="">← Города</button><h1>${cityName(S.open)}</h1>${chips()}<div style="height:8px"></div>${list.length ? `<div class="grid">${list.map(card).join("")}</div>` : `<div class="info" style="text-align:center">Скоро здесь появятся товары.</div>`}`;
  },
  cart(){
   const items = Object.entries(S.cart);
