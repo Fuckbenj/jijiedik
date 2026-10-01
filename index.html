@@ -227,7 +227,7 @@ const cityName = id => cities.find(c=>c.id===id).name;
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try{tg.setHeaderColor("#070304");tg.setBackgroundColor("#070304")}catch(e){} }
 const $ = s => document.querySelector(s);
-const S = {tab:"home", cat:"Всё", q:"", sort:"asc", cart:{}, open:null, detail:null, orders:[]};
+const S = {tab:"home", cat:"Всё", q:"", sort:"asc", cart:{}, open:null, detail:null, isManager:false, orders:[]};
 const load = () => { try { return JSON.parse(localStorage.getItem('dp_orders')||'[]') } catch(e){ return [] } };
 const save = () => { try { localStorage.setItem('dp_orders', JSON.stringify(S.orders)) } catch(e){} };
 S.orders = load();
@@ -299,7 +299,7 @@ const views = {
    <div class="row" style="margin-top:10px"><span class="st ${c?"no":"ok"}">${c?"Отменён":"Оформлен"}</span><b>${money(o.total)}</b></div>
    ${c?"":`<button class="cancel" data-cancel="${o.n}">Отменить заказ</button>`}</div>`}).join("");
   return `<h1>${u?u.first_name:"Профиль"}</h1><h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
-   + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
+   + (S.isManager ? `<h2>Менеджер</h2><a class="city" href="orders.html" style="text-decoration:none;color:inherit"><span><b>Панель заказов</b><small>Заказы вашего города</small></span><i>›</i></a>` : "") + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
  }
 };
 const tabs = [["home","🏠","Главная"],["catalog","▦","Каталог"],["cities","📍","Города"],["cart","🛒","Корзина"],["profile","👤","Профиль"]];
@@ -362,7 +362,7 @@ async function submitOrder(){
     c.sending = true; coRender();
     try{
       const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,initData:tg?tg.initData:""})});
-      o.sent = r.ok;
+      o.sent = r.ok; try{ const j = await r.json(); if(j && j.id) o.n = j.id }catch(e){}
     }catch(e){ o.sent = false }
     c.sending = false;
   }
@@ -483,7 +483,8 @@ function pruneCancelled(){
   while(c.length > MAX_CANCELLED){ const old = c.shift(); S.orders = S.orders.filter(o=>o!==old); }
 }
 function cancelOrder(n){
-  const go = () => { const o=S.orders.find(x=>x.n===n); if(o){ o.status="cancel"; o.cancelledAt=Date.now(); pruneCancelled(); save(); render(); toast("Заказ №"+n+" отменён"); } };
+  const go = () => { const o=S.orders.find(x=>x.n===n); if(o){ o.status="cancel"; o.cancelledAt=Date.now(); pruneCancelled(); save(); render(); toast("Заказ №"+n+" отменён");
+    if(ORDER_ENDPOINT && o.sent && tg && tg.initData) fetch(ORDER_ENDPOINT.replace(/\/order$/,"/cancel"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:n,initData:tg.initData})}).catch(()=>{}); } };
   const q = "Отменить заказ №"+n+"?";
   if(tg && tg.showConfirm) tg.showConfirm(q, ok => { if(ok) go(); }); else if(confirm(q)) go();
 }
@@ -503,6 +504,12 @@ document.addEventListener("click",e=>{
   render();
 });
 render();
+// Менеджерам в профиле показывается вход в панель заказов (проверяет сервер по подписи Telegram)
+(function checkManager(){
+  if(!ORDER_ENDPOINT || !tg || !tg.initData) return;
+  fetch(ORDER_ENDPOINT.replace(/\/order$/,"/panel"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,page:1})})
+    .then(r=>{ if(r.ok){ S.isManager = true; if(S.tab==="profile") render(); } }).catch(()=>{});
+})();
 const t0 = performance.now();
 (function progress(){
   const f=$(".fillp"),p=$(".pct"),l=$(".led"); if(!f) return;
