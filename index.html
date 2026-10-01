@@ -99,6 +99,11 @@ padding:6px 16px 6px 6px;border-radius:99px;font-size:13px;opacity:0;pointer-eve
 .city small{color:var(--mute);font-size:13px}
 .city i{font-style:normal;font-size:30px;color:var(--acc);text-shadow:0 0 12px var(--acc)}
 .city:hover,.city:active{border-color:var(--acc);box-shadow:0 0 22px #ff223344}
+.city{position:relative;overflow:hidden}
+body[data-tab="cities"]{background:linear-gradient(165deg,#000 0%,#0b0204 26%,#3a0710 60%,#8e1020 100%) fixed}
+.city::before{content:"";position:absolute;inset:0 50px 0 0;background-image:var(--cp);background-size:120px 120px;background-position:right center;opacity:.6;pointer-events:none;
+-webkit-mask-image:linear-gradient(90deg,transparent 42%,#000 100%);mask-image:linear-gradient(90deg,transparent 42%,#000 100%)}
+.city>*{position:relative}
 .back{color:var(--acc);font-weight:600;padding:4px 0 10px}
 .card{cursor:pointer}
 #sheet{position:fixed;inset:0;z-index:8;display:none}#sheet.on{display:block}
@@ -191,7 +196,12 @@ const openSupport = () => { if (tg && tg.openTelegramLink) tg.openTelegramLink(S
 // ===== ТОВАРЫ: редактируйте здесь =====
 // image: путь к фото (необязательно). Без фото рисуется заглушка.
 const currency = "€";
-const cities = [{id:"fra",name:"Франкфурт"},{id:"wie",name:"Висбаден"},{id:"gie",name:"Гиссен"}];
+// Для каждого города на фоне рисуются свои значки линиями (см. CITY_ICONS ниже)
+const cities = [
+  {id:"fra",name:"Франкфурт"},   // небоскрёбы
+  {id:"wie",name:"Висбаден"},    // поле: колосья и подсолнухи
+  {id:"gie",name:"Гиссен"}       // поезда
+];
 // Каталог: город -> категория -> товары.
 // Строка товара: [название, описание, цена, цвет, метка, фото]
 // метка: "hit" = хит продаж, "new" = новинка (можно пропустить); фото: "images/1.jpg" (можно пропустить)
@@ -458,8 +468,34 @@ const PATTERNS = {
  cart:   [["basket",55,60,-10,1],["bag",165,55,12,1],["basket",185,170,8,.9],["bag",65,175,-8,.9],["basket",125,125,0,.6]],
  profile:[["user",55,60,0,1],["receipt",165,60,8,1],["receipt",60,175,-8,1],["user",170,175,0,1]]
 };
+Object.assign(ICONS, {
+ twrA:'<rect x="-9" y="-20" width="18" height="46"/><path d="M0 -20V-30M-4 -12H4M-4 -4H4M-4 4H4M-4 12H4M-4 20H4"/>',
+ twrB:'<path d="M-15 26V-4H-8V-16H8V-4H15V26Z"/><path d="M-6 -4V26M0 -16V26M6 -4V26"/><path d="M-15 8H15"/>',
+ wheat:'<path d="M0 26V-18"/><ellipse cx="0" cy="-23" rx="3" ry="6"/>' + [-14,-4,6].map(y=>`<ellipse cx="-6" cy="${y}" rx="3" ry="6" transform="rotate(-32 -6 ${y})"/><ellipse cx="6" cy="${y}" rx="3" ry="6" transform="rotate(32 6 ${y})"/>`).join(""),
+ sunf:'<g transform="translate(0 -4)"><circle r="6"/>' + Array.from({length:8},(_,i)=>`<ellipse cx="0" cy="-15" rx="4" ry="8" transform="rotate(${i*45})"/>`).join("") + '</g><path d="M0 24V28"/>',
+ cap:'<path d="M-26 -4L0 -16L26 -4L0 8Z"/><path d="M-14 2V13C-14 20 14 20 14 13V2"/><path d="M22 -2V12"/>',
+ flask:'<path d="M-5 -24H5M-3 -24V-6L-16 14C-18 19 -15 24 -10 24H10C15 24 18 19 16 14L3 -6V-24"/><path d="M-12 10H12"/>'
+});
+Object.assign(ICONS, {
+ train:'<path d="M-27 9V-5C-27 -11 -23 -14 -17 -14H10C19 -14 27 -7 27 1V9Z"/><path d="M-21 -8H-11V-1H-21ZM-7 -8H3V-1H-7ZM11 -8H15L19 -1H11Z"/><circle cx="-16" cy="13" r="3.5"/><circle cx="0" cy="13" r="3.5"/><circle cx="16" cy="13" r="3.5"/><path d="M-29 18H29"/>',
+ trainF:'<path d="M-14 -17H14C18 -17 20 -15 20 -11V13H-20V-11C-20 -15 -18 -17 -14 -17Z"/><path d="M-14 -11H14V-1H-14Z"/><circle cx="-10" cy="6" r="2.5"/><circle cx="10" cy="6" r="2.5"/><path d="M-8 -17L0 -25L8 -17M-14 13V18M14 13V18M-24 22H24"/>'
+});
+const CITY_ICONS = {fra:["twrA","twrB"], wie:["wheat","sunf"], gie:["train","trainF"]};
+const cityCache = {};
+function cityTile(id, kind){
+  const key = id+kind; if(cityCache[key]) return cityCache[key];
+  const [a,b] = CITY_ICONS[id], card = kind === "card", S_ = card ? 120 : 200;
+  const items = card ? [[a,30,50,.9],[b,90,50,.9]] : [[a,50,50,1.05],[b,150,50,1.05],[b,50,150,1.05],[a,150,150,1.05]];
+  const g = items.map(([n,x,y,s])=>`<g transform="translate(${x} ${y}) scale(${s})">${ICONS[n]}</g>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S_}" height="${S_}" viewBox="0 0 ${S_} ${S_}"><g fill="none" stroke="#ff2233" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${g}</g></svg>`;
+  return cityCache[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
 const patCache = {};
 function setPat(){
+  document.body.dataset.tab = S.tab;
+  document.querySelectorAll(".city[data-open]").forEach(el=>{ if(el.dataset.open) el.style.setProperty("--cp", cityTile(el.dataset.open,"card")); });
+  if(S.tab==="cities"){ $("#pat").style.backgroundImage = "none"; $("#pat").style.opacity = ""; return; }   // на вкладке «Города» фон без значков, только градиент
+  $("#pat").style.backgroundSize = ""; $("#pat").style.opacity = "";
   const key = PATTERNS[S.tab] ? S.tab : "home";
   if(!patCache[key]){
     const g = PATTERNS[key].map(([n,x,y,r,s])=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})">${ICONS[n]}</g>`).join("");
