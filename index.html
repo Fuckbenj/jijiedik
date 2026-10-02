@@ -200,6 +200,9 @@ const MANAGERS = { fra:"https://t.me/manager_frankfurt", wie:"https://t.me/manag
 // Адрес вашего сервера (order_server.py), который принимает заказ и сразу пересылает менеджеру города.
 // Пример: "https://ваш-сервер.com/order". Пока пусто: заказ отправляется кнопкой «Отправить менеджеру».
 const ORDER_ENDPOINT = "https://roy555.pythonanywhere.com/order";
+// Адрес ОТДЕЛЬНОГО сервера статистики (stats_server.py), например "https://ваш-сайт-статистики.com/track".
+// Пока пусто, учёт посетителей выключен. Админ-панель находится на том сервере, не в магазине.
+const STATS_URL = "https://fofanrek.pythonanywhere.com/track";
 const MAX_ITEMS = 10;   // максимум товаров (штук) в одном заказе; больше только через менеджера
 const DELIVERY = { post: 4.9, freeFrom: 49 };
 // ========================================
@@ -573,6 +576,16 @@ render();
   if(!ORDER_ENDPOINT || !tg || !tg.initData) return;
   fetch(ORDER_ENDPOINT.replace(/\/order$/,"/panel"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,page:1})})
     .then(r=>{ if(r.ok){ S.isManager = true; if(S.tab==="profile") render(); } }).catch(()=>{});
+})();
+// Учёт посетителей для личной админ-панели владельца: при открытии и раз в минуту, пока магазин открыт.
+// Отправляется Telegram-ID/имя (из подписанных данных Telegram), платформа; страну сервер определяет по IP и сам IP не хранит.
+(function track(){
+  if(!STATS_URL) return;
+  const url = STATS_URL;
+  const send = type => { try{ fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,
+    body:JSON.stringify({type,initData:tg?tg.initData:"",platform:tg?(tg.platform||"tg"):"web"})}).catch(()=>{}) }catch(e){} };
+  send("open");
+  setInterval(()=>{ if(document.visibilityState==="visible") send("ping") }, 60000);
 })();
 const t0 = performance.now();
 (function progress(){
