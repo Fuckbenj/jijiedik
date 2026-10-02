@@ -229,6 +229,9 @@ const LIQUID_TIERS = {1:20, 2:36, 3:51, 4:64, 5:75, 6:84, 7:91, 8:96, 9:98, 10:1
 // Puffy 30 мл, крепость 5%. stock = сколько штук в наличии (нельзя заказать больше). Уберите stock, если лимита нет.
 const puffy = (flavor, color, stock) => [flavor, "Puffy · 30 мл", 20, color, null, "images/"+flavor.toLowerCase().replace(/ /g,"-")+".jpg",
   {strength:"5%", stock, desc:`Жидкость Puffy, 30 мл, крепость 5%. Вкус: ${flavor}.`}];
+const FL = {"Peach Blueberry Ice":"#ffa97a","Tropical Fruits":"#ffc83d","Berry Kiwi":"#7bd36a","Energy Drink":"#3ad0ff","Watermelon Bubble Gum":"#ff6f91",
+  "Grape Melon":"#a870ff","Apple Grape Blueberry":"#6a7dff","Berry Cherry Cocktail":"#ff2a55","Cranberry Grape":"#c0286b","Sour Strawberry":"#ff5a4a"};
+const pf = (flavor, stock) => puffy(flavor, FL[flavor], stock);   // вкус + количество в наличии (картинка берётся из images/ по названию вкуса)
 const catalog = {
  fra:{
   "Жижи":[
@@ -236,9 +239,11 @@ const catalog = {
     puffy("Energy Drink","#3ad0ff",1), puffy("Watermelon Bubble Gum","#ff6f91",2), puffy("Grape Melon","#a870ff",2),
     puffy("Apple Grape Blueberry","#6a7dff",2), puffy("Berry Cherry Cocktail","#ff2a55",2), puffy("Cranberry Grape","#c0286b",2)]},
  wie:{
-  "Жижи":[]},   // пока пусто: добавьте строки так же, как у Франкфурта
+  "Жижи":[pf("Tropical Fruits",2), pf("Energy Drink",1)]},
  gie:{
-  "Жижи":[]}
+  "Жижи":[
+    pf("Peach Blueberry Ice",2), pf("Tropical Fruits",2), pf("Berry Kiwi",2), pf("Energy Drink",2), pf("Watermelon Bubble Gum",2),
+    pf("Grape Melon",2), pf("Apple Grape Blueberry",2), pf("Berry Cherry Cocktail",2), pf("Cranberry Grape",2), pf("Sour Strawberry",2)]}
 };
 // Характеристики по умолчанию для категории (показываются в описании товара).
 // У отдельного товара можно задать свои: добавьте 7-м элементом {puffs:"8 000 тяг", strength:"50 мг", desc:"Текст"}
@@ -301,7 +306,7 @@ const views = {
   <div class="hero">${mas()}</div>
   ${chips()}
   ${(()=>{ const hits = products.filter(p=>p.hit&&inCat(p)), news = products.filter(p=>p.new&&inCat(p));
-    if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>Все жижи</h2><div class="hs">${all.map(card).join("")}</div>` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
+    if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>Все жижи</h2><div class="hs">${all.slice(0,10).map(card).join("")}</div>${all.length>10?`<button class="btn ghost" style="width:100%;margin-top:8px" data-go="catalog">Весь каталог (${all.length})</button>`:""}` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
     return (hits.length?`<h2>Хиты продаж</h2><div class="hs">${hits.map(card).join("")}</div>`:"") + (news.length?`<h2>Новинки</h2><div class="hs">${news.map(card).join("")}</div>`:""); })()}`;
  },
  catalog(){
