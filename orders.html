@@ -36,6 +36,8 @@ a.link{color:#ff6b77;text-decoration:none;font-weight:600}
 .state{text-align:center;padding:60px 10px;color:var(--mute)}.state b{display:block;color:#fff;font:400 24px var(--drip);margin-bottom:8px;text-transform:uppercase}
 .btn{width:100%;margin-top:10px;padding:12px;border-radius:14px;background:var(--acc);color:#fff;border:0;font:600 14px var(--body);text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 18px #ff223366;cursor:pointer}
 .btn:disabled{opacity:.5}
+.inp{width:100%;padding:13px 14px;margin-top:8px;border-radius:14px;border:1px solid var(--line);background:#0d0506;color:var(--ink);font:inherit}
+.gr{margin-bottom:6px}
 h2{font:400 20px var(--drip);text-transform:uppercase;margin:18px 0 10px}
 .badge.ok{background:#2fd15a22;color:#6be28d}
 code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em}
@@ -46,6 +48,10 @@ code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em
 <main>
   <a class="back" href="./">← В магазин</a>
   <div class="row"><h1>Заказы</h1><button class="refresh" id="refresh" aria-label="Обновить">↻ Обновить</button></div>
+  <div class="card gr" hidden><b class="id" style="display:block;margin-bottom:6px">Выдать награду за задание</b>
+    <input class="inp" id="gclient" placeholder="@username или ID клиента" autocomplete="off">
+    <select class="inp" id="gkind"><option value="disc25">Скидка −25%</option><option value="liquid">Бесплатная жидкость на выбор</option></select>
+    <button class="btn" id="ggo">Выдать</button><p class="sub" id="gmsg" style="margin:8px 0 0"></p></div>
   <div id="prizes"></div>
   <p class="sub" id="sub">Загрузка…</p>
   <div id="list"></div>
@@ -59,6 +65,7 @@ code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em
 const API = "https://roy555.pythonanywhere.com/panel";
 
 const COMPLETE = API.replace(/\/panel$/, "/complete"), PRIZES = API.replace(/\/panel$/, "/panel/prizes"), PRIZE_DONE = API.replace(/\/panel$/, "/prize_done");
+const GRANT = API.replace(/\/panel$/, "/grant");
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#070304"); tg.setBackgroundColor("#070304"); } catch (e) {} }
 
@@ -99,6 +106,7 @@ function card(o){
   c.append(kv("Получение", o.delivery === "post" ? "Доставка: " + (o.addr || "") : "Самовывоз"), kv("Оплата", o.pay || ""), kv("Контакт", o.contact || ""));
   if (o.name) c.append(kv("Имя", o.name));
   if (o.comment) c.append(kv("Комментарий", o.comment));
+  if (o.reward) c.append(kv("Награда", o.reward));
   if (o.discount) c.append(kv("Скидка баллами", "−" + money(o.discount) + " (" + o.spent + " б.)"));
   const t = kv("Итого", money(o.total)); t.classList.add("total"); c.append(t);
   if (o.status === "new") {
@@ -117,6 +125,22 @@ function card(o){
   }
   return c;
 }
+
+$("#ggo").onclick = async () => {
+  const client = $("#gclient").value.trim(), kind = $("#gkind").value, msg = $("#gmsg");
+  if (!client) { msg.textContent = "Введите @username или ID клиента."; return; }
+  const kn = $("#gkind").selectedOptions[0].textContent;
+  if (!confirm("Выдать «" + kn + "» клиенту " + client + "?")) return;
+  $("#ggo").disabled = true; msg.textContent = "…";
+  try {
+    const r = await fetch(GRANT, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, client, kind})});
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { msg.textContent = "Выдано: " + j.reward + " → " + j.name + (j.username ? " (@" + j.username + ")" : "") + ", ID " + j.id; $("#gclient").value = ""; }
+    else if (r.status === 404) msg.textContent = "Клиент не найден. Он должен хотя бы раз открыть магазин через Telegram.";
+    else msg.textContent = "Не получилось. Попробуйте ещё раз.";
+  } catch (e) { msg.textContent = "Нет связи с сервером."; }
+  $("#ggo").disabled = false;
+};
 
 async function loadPrizes(){
   const box = $("#prizes");
@@ -159,7 +183,7 @@ async function load(p){
     const j = await r.json().catch(() => ({}));
     if (r.status === 403) { state("Нет доступа", "Этот раздел только для менеджеров."); $("#sub").textContent = ""; return; }
     if (!r.ok || !j.ok) throw new Error("server");
-    page = j.page; pages = j.pages; loadPrizes();
+    page = j.page; pages = j.pages; document.querySelector(".gr").hidden = false; loadPrizes();
     $("#sub").textContent = j.cities.join(", ") + " · всего заказов: " + j.count;
     if (!j.items.length) { state("Заказов пока нет", "Новые заказы появятся здесь."); return; }
     $("#list").replaceChildren(...j.items.map(card));
