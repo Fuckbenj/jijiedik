@@ -177,6 +177,10 @@ h1,h2,.name,.ct,.city b,.dn{font-family:var(--drip);font-weight:400;letter-spaci
 h1{font-size:30px}h2{font-size:24px}
 .name{font-size:17px}.ct{font-size:30px}.city b{font-size:24px}.dn{font-size:32px}
 .hero h1,.top .logo{color:#ff3344;text-shadow:0 0 10px #ff2233,0 0 26px #b0001a}
+/* ===== Задания ===== */
+.task{display:flex;gap:14px;align-items:center;padding:16px;margin-bottom:10px;border:1px solid var(--line);border-radius:20px;background:var(--card)}
+.task .tn{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:400 18px var(--head);color:#fff;background:var(--acc);box-shadow:0 0 14px #ff223388}
+.task b{font-weight:600;display:block}.task .tr{margin-top:4px;color:var(--acc);font-size:14px;font-weight:600}
 /* ===== Баллы ===== */
 .ptsbox{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;border-radius:20px;border:1px solid var(--acc);background:linear-gradient(135deg,#2a0a10,#140a0c);box-shadow:0 0 22px #ff223344}
 .ptsbox small{display:block;color:var(--mute);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
@@ -361,6 +365,7 @@ const views = {
  home(){
   return `<div class="top"><div class="brand"><img class="av" src="${AVATAR}" alt=""><h1 class="logo">Dark Puff</h1></div><span class="age">18+</span></div>
   <div class="hero">${mas()}</div>
+  <button class="city" data-go="tasks" style="margin:6px 0 4px"><span><b>Задания</b><small>Как заработать скидки и подарки</small></span><i>›</i></button>
   ${chips()}
   ${(()=>{ const hits = products.filter(p=>p.hit&&inCat(p)), news = products.filter(p=>p.new&&inCat(p));
     if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>Все жижи</h2><div class="hs">${all.slice(0,10).map(card).join("")}</div>${all.length>10?`<button class="btn ghost" style="width:100%;margin-top:8px" data-go="catalog">Весь каталог (${all.length})</button>`:""}` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
@@ -407,14 +412,17 @@ const views = {
    <div style="margin:8px 0">Код: <code>${p.code}</code></div>
    <div class="row"><span class="st ${p.status==="given"?"ok":"no"}">${p.status==="given"?"Выдан":"Ждёт выдачи"}</span></div>
    ${p.status==="given"?"":`<button class="btn ghost" style="width:100%;margin-top:10px" data-prize="${p.code}">Написать менеджеру</button><p class="hint" style="margin:8px 2px 0">Можно сделать скрин этой карточки и отправить менеджеру.</p>`}</div>`).join("") : "";
-  return `<h1>${u?u.first_name:"Профиль"}</h1>${ptsHtml}${prz}<h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
+  const rws = PTS.rewards.length ? `<h2>Мои награды</h2>` + PTS.rewards.map(r=>`<div class="prz"><div class="row"><b>${r.name}</b><span class="sub" style="margin:0">${r.when}</span></div>
+   <div class="row" style="margin-top:8px"><span class="st ${r.status==="active"?"ok":"no"}">${r.status==="active"?"Можно применить":"Использована"}</span></div>
+   ${r.status==="active"?`<p class="hint" style="margin:8px 2px 0">Выберите её на последнем шаге оформления заказа.</p>`:""}</div>`).join("") : "";
+  return `<h1>${u?u.first_name:"Профиль"}</h1>${ptsHtml}${rws}${prz}<h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
    + (S.isManager ? `<h2>Менеджер</h2><a class="city" href="orders.html" style="text-decoration:none;color:inherit"><span><b>Панель заказов</b><small>Заказы вашего города</small></span><i>›</i></a>` : "") + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
  }
 };
 
 /* ===== Баллы: всё хранится на сервере (телефон баллы подделать не может) ===== */
 const API = p => ORDER_ENDPOINT.replace(/\/order$/, p);
-const PTS = {points:0, pending:0, prizes:[], loaded:false, cfg:{ppi:10, case_cost:50, step_pts:100, step_eur:5}};
+const PTS = {points:0, pending:0, prizes:[], rewards:[], loaded:false, cfg:{ppi:10, case_cost:50, step_pts:100, step_eur:5}};
 const canPts = () => !!(ORDER_ENDPOINT && tg && tg.initData);
 async function apiPost(path, body){
   const r = await fetch(API(path), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(Object.assign({initData: tg ? tg.initData : ""}, body||{}))});
@@ -426,7 +434,7 @@ async function loadMe(){
   try{
     const {r, j} = await apiPost("/me");
     if(!r.ok || !j.ok) return;
-    PTS.points = j.points; PTS.pending = j.pending; PTS.prizes = j.prizes || []; PTS.cfg = j.config || PTS.cfg; PTS.loaded = true;
+    PTS.points = j.points; PTS.pending = j.pending; PTS.prizes = j.prizes || []; PTS.rewards = j.rewards || []; PTS.cfg = j.config || PTS.cfg; PTS.loaded = true;
     (j.orders||[]).forEach(x => { const o = S.orders.find(y => y.n === x.id); if(!o) return;
       if(x.status === "done") o.status = "done"; else if(x.status === "cancelled" && o.status !== "cancel"){ o.status = "cancel"; o.cancelledAt = o.cancelledAt || Date.now(); } });
     save();
@@ -440,7 +448,16 @@ function ptsPlan(gross){
   const k = Math.max(0, Math.min(Math.floor(PTS.points / c.step_pts), Math.floor(gross / c.step_eur)));
   return {k, spend:k*c.step_pts, disc:k*c.step_eur};
 }
+const activeReward = kind => PTS.rewards.find(r => r.kind === kind && r.status === "active");
+// скидка-награда считается от стоимости товаров (без доставки)
+const rewardDisc = (kind, goods) => { const r = kind==="disc25" && activeReward("disc25"); return r ? Math.round(goods*r.percent)/100 : 0; };
 const prizeText = p => "Привет! Я выиграл(а) в кейсе: " + p.name + ". Код приза: " + p.code;
+views.tasks = () => `<button class="back" data-go="home">← Назад</button><h1>Задания</h1>
+  <p class="sub" style="margin:6px 2px 14px">Как заработать скидки и выгодные предложения?</p>`
+  + [["👥","Пригласи в канал 5 человек","−25% скидка"],["🎁","Пригласи в канал 10 человек","Бесплатная жидкость на выбор"],
+     ["🛒","Если от вас купит 3 человека","Жидкость в подарок на следующий заказ автоматически"],["🤝","Покупайте вместе с другом","Вы и друг автоматически получаете −25%"]]
+    .map(([ic,t,r],i)=>`<div class="task"><span class="tn">${i+1}</span><div><b>${t}</b><div class="tr">${ic} ${r}</div></div></div>`).join("")
+  + `<p class="hint" style="margin:12px 2px">Выполнил задание? Напиши менеджеру. Он проверит и выдаст награду: она появится в профиле, а применить её можно при оформлении заказа.</p><button class="btn" style="width:100%" data-support>Написать менеджеру</button>`;
 views.cases = () => '<div id="casesMount"></div>';
 /* ===== Кейсы: 3D-игрушка (three.js грузится только при первом заходе во вкладку) ===== */
 const CASES = (function(){
@@ -818,7 +835,7 @@ function orderText(o){
   return ["🆕 Заказ №"+o.n+" · "+cityName(o.city),
    "Клиент: ID "+(u.id||"неизвестен (открыто вне Telegram)")+(u.username?" · @"+u.username:"")+(u.first_name?" · "+u.first_name:""),
    "", ...o.items.map(i=>"• "+i.name+" × "+i.qty), "",
-   o.delivery==="post"?"Доставка: "+o.addr:"Самовывоз", "Оплата: "+payName[o.pay], o.spent?"Скидка баллами: −"+money(o.discount)+" (списано "+o.spent+" баллов)":undefined, "Итого: "+money(o.total),
+   o.delivery==="post"?"Доставка: "+o.addr:"Самовывоз", "Оплата: "+payName[o.pay], o.rewardName?"Награда: "+o.rewardName+(o.rewardDisc?" (−"+money(o.rewardDisc)+")":" (уточните вкус)"):undefined, o.spent?"Скидка баллами: −"+money(o.discount)+" (списано "+o.spent+" баллов)":undefined, "Итого: "+money(o.total),
    "Контакт: "+o.contact, o.name?"Имя: "+o.name:undefined, o.comment?"Комментарий: "+o.comment:undefined].filter(x=>x!==undefined&&x!==null).join("\n");
 }
 function sendToManager(o){
@@ -828,8 +845,10 @@ function sendToManager(o){
 async function submitOrder(){
   const c = S.co; if(c.sending) return;
   const city = c.city, ship = shipCost(), u = tgUser();
-  const gross = cartSum()+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
-  const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0,
+  const rw = (c.reward==="disc25"||c.reward==="liquid") ? activeReward(c.reward) : null;
+  const rdisc = rw ? rewardDisc(c.reward, cartSum()) : 0;
+  const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
+  const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0, rewardName:rw?rw.name:"", rewardDisc:rdisc,
     items:Object.entries(S.cart).map(([id,q])=>{const pp=products.find(p=>p.id==id);return {name:pp.name+" ("+pp.sub+")",qty:q}}),
     name:c.name, contact:(c.ctype==="tg"?"Telegram ":"Тел. ")+c.contact, comment:c.comment,
     user:u?{id:u.id,username:u.username||"",first_name:u.first_name||""}:null,
@@ -838,12 +857,13 @@ async function submitOrder(){
   if(ORDER_ENDPOINT){
     c.sending = true; coRender();
     try{
-      const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,initData:tg?tg.initData:""})});
-      if(r.status===409 && o.spent){ c.sending = false; coRender(); toast("Не хватает баллов. Обновили баланс"); loadMe(); return; }
+      const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,initData:tg?tg.initData:""})});
+      if(r.status===409 && rw && !o.spent){ c.sending = false; coRender(); toast("Награда уже недоступна. Обновили список"); loadMe(); return; }
+      if(r.status===409 && (o.spent || rw)){ c.sending = false; coRender(); toast(o.spent ? "Не хватает баллов или награда недоступна. Обновили данные" : "Награда уже недоступна. Обновили список"); loadMe(); return; }
       o.sent = r.ok; try{ const j = await r.json(); if(j && j.id) o.n = j.id }catch(e){}
     }catch(e){ o.sent = false }
     c.sending = false;
-    if(!o.sent && o.spent){ o.total += o.discount; o.spent = 0; o.discount = 0; o.text = orderText(o); }   // не дошло до сервера: баллы не списаны, скидки нет
+    if(!o.sent && (o.spent || o.rewardName)){ o.total += o.discount + o.rewardDisc; o.spent = 0; o.discount = 0; o.rewardName = ""; o.rewardDisc = 0; o.text = orderText(o); }   // не дошло до сервера: баллы не списаны, скидки нет
   }
   S.orders.unshift(o); save(); S.cart = {};
   c.done = o.n; c.order = o; coRender(); render(); loadMe();
@@ -866,9 +886,14 @@ function coRender(){
   let rows = Object.entries(S.cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return `<div class="r"><span>${p.name} · ${q} шт</span><b>${p.cat===LIQUID_CAT?"":money(p.price*q)}</b></div>`}).join("");
   if(tt.liqQty) rows += `<div class="r"><span>Жижи, ${tt.liqQty} шт (цена набора)</span><b>${money(tt.liqSum)}</b></div>`;
   if(c.delivery==="post") rows += `<div class="r"><span>Доставка</span><b>${ship?money(ship):"бесплатно"}</b></div>`;
-  const gross = cartSum()+ship, plan = ptsPlan(gross);
+  if(c.reward==="disc25" && !activeReward("disc25")) c.reward = "";
+  if(c.reward==="liquid" && !activeReward("liquid")) c.reward = "";
+  const rdisc = rewardDisc(c.reward, cartSum());
+  const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross);
   if(!plan.k) c.usePts = "0";
   const disc = c.usePts==="1" ? plan.disc : 0;
+  if(rdisc) rows += `<div class="r"><span>Награда: скидка −${activeReward("disc25").percent}%</span><b>−${money(rdisc)}</b></div>`;
+  if(c.reward==="liquid") rows += `<div class="r"><span>Награда: бесплатная жидкость</span><b>🎁</b></div>`;
   if(disc) rows += `<div class="r"><span>Скидка баллами (${plan.spend})</span><b>−${money(disc)}</b></div>`;
   const total = gross - disc;
   const seg = (key,opts) => `<div class="seg">${opts.map(([v,l])=>`<button class="${c[key]===v?"on":""}" data-co="${key}:${v}">${l}</button>`).join("")}</div>`;
@@ -882,7 +907,10 @@ function coRender(){
     `<input class="inp" data-f="contact" placeholder="${c.ctype==="tg"?"@username":"+49 …"}" value="${c.contact.replace(/"/g,"&quot;")}">
      <textarea class="inp" data-f="comment" placeholder="Комментарий к заказу (не обязательно)">${c.comment}</textarea>
      <button class="btn" style="width:100%" data-costep="3">Дальше</button><button class="bk" data-costep="1">Назад</button>`;
-  const ptsRow = plan.k ? `<div class="stl" style="margin:12px 2px 8px">Баллы: у вас ${PTS.points}</div><div class="seg"><button class="${c.usePts==="1"?"on":""}" data-co="usePts:${c.usePts==="1"?"0":"1"}">${c.usePts==="1"?"✓ ":""}Списать ${plan.spend} баллов · −${money(plan.disc)}</button></div>` : "";
+  const rwBtn = (kind, label) => activeReward(kind) ? `<button class="${c.reward===kind?"on":""}" data-co="reward:${c.reward===kind?"":kind}">${c.reward===kind?"✓ ":""}${label}</button>` : "";
+  const rwBtns = rwBtn("disc25","Награда: −25%") + rwBtn("liquid","Награда: бесплатная жидкость");
+  const rwRow = rwBtns ? `<div class="stl" style="margin:12px 2px 8px">Ваши награды (одну на заказ)</div><div class="seg">${rwBtns}</div>${c.reward==="liquid"?`<p class="hint">Менеджер уточнит у вас вкус бесплатной жидкости.</p>`:""}` : "";
+  const ptsRow = rwRow + (plan.k ? `<div class="stl" style="margin:12px 2px 8px">Баллы: у вас ${PTS.points}</div><div class="seg"><button class="${c.usePts==="1"?"on":""}" data-co="usePts:${c.usePts==="1"?"0":"1"}">${c.usePts==="1"?"✓ ":""}Списать ${plan.spend} баллов · −${money(plan.disc)}</button></div>` : "");
   if(c.step===3) body = seg("pay",[["cash","Наличные"],["transfer","Перевод"],["crypto","Крипта"]]) +
     `<p class="hint">${{cash:"Оплата наличными при получении. Приготовь сумму без сдачи, если можешь.",transfer:"Реквизиты для перевода пришлёт менеджер после подтверждения.",crypto:"Адрес кошелька и сумму пришлёт менеджер после подтверждения."}[c.pay]}</p>${ptsRow}
      <button class="btn" style="width:100%" data-costep="send">${c.sending?"Отправляем…":"Подтвердить · "+money(total)}</button><button class="bk" data-costep="2">Назад</button>`;
