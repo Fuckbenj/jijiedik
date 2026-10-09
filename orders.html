@@ -34,6 +34,11 @@ a.link{color:#ff6b77;text-decoration:none;font-weight:600}
 .pager button:disabled{background:var(--card);color:var(--mute);box-shadow:none;border:1px solid var(--line);cursor:default}
 .pager span{color:var(--mute);font-size:13px;white-space:nowrap}
 .state{text-align:center;padding:60px 10px;color:var(--mute)}.state b{display:block;color:#fff;font:400 24px var(--drip);margin-bottom:8px;text-transform:uppercase}
+.btn{width:100%;margin-top:10px;padding:12px;border-radius:14px;background:var(--acc);color:#fff;border:0;font:600 14px var(--body);text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 18px #ff223366;cursor:pointer}
+.btn:disabled{opacity:.5}
+h2{font:400 20px var(--drip);text-transform:uppercase;margin:18px 0 10px}
+.badge.ok{background:#2fd15a22;color:#6be28d}
+code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em}
 .refresh{background:none;border:1.5px solid var(--line);color:var(--ink);border-radius:12px;padding:8px 14px;font:inherit;cursor:pointer}
 </style>
 </head>
@@ -41,6 +46,7 @@ a.link{color:#ff6b77;text-decoration:none;font-weight:600}
 <main>
   <a class="back" href="./">← В магазин</a>
   <div class="row"><h1>Заказы</h1><button class="refresh" id="refresh" aria-label="Обновить">↻ Обновить</button></div>
+  <div id="prizes"></div>
   <p class="sub" id="sub">Загрузка…</p>
   <div id="list"></div>
   <div class="pager" id="pager" hidden>
@@ -52,6 +58,7 @@ a.link{color:#ff6b77;text-decoration:none;font-weight:600}
 // Адрес вашего сервера (тот же, что в магазине, но заканчивается на /panel)
 const API = "https://roy555.pythonanywhere.com/panel";
 
+const COMPLETE = API.replace(/\/panel$/, "/complete"), PRIZES = API.replace(/\/panel$/, "/panel/prizes"), PRIZE_DONE = API.replace(/\/panel$/, "/prize_done");
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#070304"); tg.setBackgroundColor("#070304"); } catch (e) {} }
 
@@ -71,8 +78,9 @@ function state(title, text){
 
 function card(o){
   const c = el("div","card" + (o.status === "cancelled" ? " off" : ""));
+  const done = o.status === "done";
   const top = el("div","row");
-  top.append(el("div","id","Заказ №" + o.id), el("span","badge" + (o.status === "cancelled" ? " no" : ""), o.status === "cancelled" ? "Отменён" : "Новый"));
+  top.append(el("div","id","Заказ №" + o.id), el("span","badge" + (o.status === "cancelled" ? " no" : done ? " ok" : ""), o.status === "cancelled" ? "Отменён" : done ? "Выдан" : "Новый"));
   c.append(top, el("div","meta", o.city + " · " + o.when));
 
   const cl = o.client || {};
@@ -91,8 +99,51 @@ function card(o){
   c.append(kv("Получение", o.delivery === "post" ? "Доставка: " + (o.addr || "") : "Самовывоз"), kv("Оплата", o.pay || ""), kv("Контакт", o.contact || ""));
   if (o.name) c.append(kv("Имя", o.name));
   if (o.comment) c.append(kv("Комментарий", o.comment));
+  if (o.discount) c.append(kv("Скидка баллами", "−" + money(o.discount) + " (" + o.spent + " б.)"));
   const t = kv("Итого", money(o.total)); t.classList.add("total"); c.append(t);
+  if (o.status === "new") {
+    const b = el("button","btn","Выдан · начислить баллы");
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const r = await fetch(COMPLETE, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, id: o.id})});
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.ok) { load(page); return; }
+        alert(r.status === 409 ? "Заказ уже обработан (возможно, клиент его отменил)." : "Не получилось. Попробуйте ещё раз.");
+      } catch (e) { alert("Нет связи с сервером."); }
+      b.disabled = false;
+    };
+    c.append(b);
+  }
   return c;
+}
+
+async function loadPrizes(){
+  const box = $("#prizes");
+  try {
+    const r = await fetch(PRIZES, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok || !j.items.length) { box.replaceChildren(); return; }
+    const out = [el("h2","","Призы из кейсов")];
+    j.items.forEach(p => {
+      const c = el("div","card"), top = el("div","row");
+      top.append(el("div","id", p.name), el("span","badge","Не выдан"));
+      c.append(top, el("div","meta", p.when));
+      const cl = p.client || {};
+      c.append(kv("Код", p.code), kv("Клиент", (cl.first_name || "Клиент") + (cl.username ? " · @" + cl.username : "")), kv("ID клиента", String(cl.id)));
+      const b = el("button","btn","Приз выдан");
+      b.onclick = async () => {
+        b.disabled = true;
+        try {
+          const r2 = await fetch(PRIZE_DONE, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, id: p.id})});
+          if (r2.ok) { loadPrizes(); return; }
+        } catch (e) {}
+        alert("Не получилось. Попробуйте ещё раз."); b.disabled = false;
+      };
+      c.append(b); out.push(c);
+    });
+    box.replaceChildren(...out);
+  } catch (e) {}
 }
 
 async function load(p){
@@ -108,7 +159,7 @@ async function load(p){
     const j = await r.json().catch(() => ({}));
     if (r.status === 403) { state("Нет доступа", "Этот раздел только для менеджеров."); $("#sub").textContent = ""; return; }
     if (!r.ok || !j.ok) throw new Error("server");
-    page = j.page; pages = j.pages;
+    page = j.page; pages = j.pages; loadPrizes();
     $("#sub").textContent = j.cities.join(", ") + " · всего заказов: " + j.count;
     if (!j.items.length) { state("Заказов пока нет", "Новые заказы появятся здесь."); return; }
     $("#list").replaceChildren(...j.items.map(card));
