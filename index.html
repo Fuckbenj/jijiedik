@@ -198,6 +198,7 @@ h1{font-size:30px}h2{font-size:24px}
 .cs-track{position:absolute;left:0;top:10px;display:flex;gap:8px;will-change:transform}
 .cs-tile{flex:none;width:112px;height:148px;border-radius:14px;overflow:hidden;position:relative;background:#000;border:1px solid var(--c);border-bottom:4px solid var(--c);box-shadow:inset 0 -26px 30px -22px var(--c)}
 .cs-tile img{width:100%;height:100%;object-fit:contain;object-position:50% 38%;display:block;background:#000;padding:6px 0 26px}
+.cs-pc{position:absolute;left:0;right:0;top:36%;transform:translateY(-50%);text-align:center;font:400 34px/1 var(--head);text-shadow:0 0 14px currentColor}
 .cs-tile svg{position:absolute;left:50%;top:44%;width:62px;height:62px;transform:translate(-50%,-50%)}
 .cs-tile span{position:absolute;left:0;right:0;bottom:0;padding:18px 0 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:linear-gradient(transparent,#000c);color:#fff;text-align:center}
 .cs-mark{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--acc);box-shadow:0 0 10px var(--acc);z-index:2}
@@ -452,7 +453,10 @@ function ptsPlan(gross){
 }
 const activeReward = kind => PTS.rewards.find(r => r.kind === kind && r.status === "active");
 // скидка-награда считается от стоимости товаров (без доставки)
-const rewardDisc = (kind, goods) => { const r = kind==="disc25" && activeReward("disc25"); return r ? Math.round(goods*r.percent)/100 : 0; };
+const rewardDisc = (kind, goods) => { const r = kind && activeReward(kind); return r && r.percent ? Math.round(goods*r.percent)/100 : 0; };
+// какие виды наград сейчас доступны клиенту (скидки по возрастанию, жидкость в конце)
+const rewardKinds = () => { const m = {}; PTS.rewards.forEach(r => { if(r.status==="active"){ m[r.kind] = m[r.kind] || {kind:r.kind, name:r.name, percent:r.percent, n:0}; m[r.kind].n++; } });
+  return Object.values(m).sort((a,b) => (a.percent||999) - (b.percent||999)); };
 const prizeText = p => "Привет! Я выиграл(а) в кейсе: " + p.name + ". Код приза: " + p.code;
 views.tasks = () => `<button class="back" data-go="home">← Назад</button><h1>Задания</h1>
   <p class="sub" style="margin:6px 2px 14px">Как заработать скидки и выгодные предложения?</p>`
@@ -471,9 +475,13 @@ const CASES = (function(){
     none:`<svg viewBox="0 0 100 100" fill="none"><circle cx="34" cy="58" r="16" fill="#a58a8e" opacity=".55"/><circle cx="56" cy="46" r="20" fill="#a58a8e" opacity=".7"/><circle cx="70" cy="62" r="13" fill="#a58a8e" opacity=".45"/></svg>`
   };
   const PRIZES = [
-    {id:"none", name:"Ничего", w:75, color:"#a58a8e", tag:"в этот раз пусто"},
-    {id:"juice",name:"Жижа",   w:20, color:"#ff2233", tag:"редкий дроп"},
-    {id:"pod",  name:"Подик",  w:5,  color:"#ff8a3c", tag:"легендарный дроп"}
+    {id:"none", name:"Ничего", w:69.5, color:"#a58a8e", tag:"в этот раз пусто"},
+    {id:"juice",name:"Жижа",   w:1,  color:"#ff2233", tag:"редкий дроп"},
+    {id:"pod",  name:"Подик",  w:0.5, color:"#ff8a3c", tag:"легендарный дроп"},
+    {id:"disc5",  name:"−5%",  w:15, color:"#ff5566", tag:"скидка на заказ", pc:5},
+    {id:"disc15", name:"−15%", w:8,  color:"#ff3b4d", tag:"скидка на заказ", pc:15},
+    {id:"disc25", name:"−25%", w:4,  color:"#ff2233", tag:"редкая скидка", pc:25},
+    {id:"disc50", name:"−50%", w:2,  color:"#ffd24a", tag:"супер-скидка", pc:50}
   ];
 
   let root=null, stageEl, capEl, shelfEl, canvas;
@@ -501,7 +509,7 @@ const CASES = (function(){
     barEl.innerHTML = canPts() ? `<span>Баллы: <b>${PTS.loaded?PTS.points:"…"}</b></span><span>Кейс: <b>${PTS.cfg.case_cost}</b> баллов</span>` : `<span>Баллы доступны только в Telegram</span>`;
     if(!T || T.state() === "idle") setCap(idleCap());
   }
-  const tile = p => `<div class="cs-tile" style="--c:${p.color}">${p.id==="juice"?`<img src="${JUICE_IMG}" alt="">`:p.id==="pod"?ICO.pod:""}<span>${p.name}</span></div>`;
+  const tile = p => `<div class="cs-tile" style="--c:${p.color}">${p.id==="juice"?`<img src="${JUICE_IMG}" alt="">`:p.id==="pod"?ICO.pod:p.pc?`<b class="cs-pc" style="color:${p.color}">${p.name}</b>`:""}<span>${p.pc?"Скидка":p.name}</span></div>`;
   function reelFill(win){
     const it = []; for(let i=0;i<44;i++) it.push(i===3 && lastWin ? lastWin : i===36 && win ? win : roll());
     trackEl.style.transition = "none"; trackEl.innerHTML = it.map(tile).join("");
@@ -672,6 +680,25 @@ const CASES = (function(){
       g.add(mesh(new THREE.BoxGeometry(.9,.05,.36), steel, 0,-.1,0)); return g;
     }
     function makeNone(){ return new THREE.Group(); }
+    function makeTicket(win){
+      const g = new THREE.Group();
+      const cv = document.createElement("canvas"); cv.width = 512; cv.height = 320;
+      const draw = () => { const x = cv.getContext("2d"); x.clearRect(0,0,512,320);
+        x.fillStyle = "#0e0708"; x.fillRect(0,0,512,320);
+        x.strokeStyle = win.color; x.lineWidth = 14; x.strokeRect(12,12,488,296);
+        x.fillStyle = win.color; x.textAlign = "center"; x.textBaseline = "middle";
+        x.font = "400 150px 'Russo One','Arial Black',sans-serif"; x.fillText(win.name,256,150);
+        x.font = "600 34px Inter,sans-serif"; x.fillStyle = "#f6ecec"; x.fillText("СКИДКА НА ЗАКАЗ",256,260); tex.needsUpdate = true; };
+      const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; draw();
+      if(document.fonts && document.fonts.load) document.fonts.load("400 150px 'Russo One'").then(draw).catch(()=>{});
+      const body = slab(1.6,1.0,.12,.06,new THREE.MeshStandardMaterial({color:0x1a0c0e, metalness:.7, roughness:.3}));
+      g.add(body);
+      for(const sgn of [1,-1]){
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(1.5,.94), new THREE.MeshBasicMaterial({map:tex, side:THREE.FrontSide}));
+        face.position.z = sgn*.115; if(sgn<0) face.rotation.y = Math.PI; g.add(face);
+      }
+      return g;
+    }
     const prizeHolder = new THREE.Group(); prizeHolder.visible = false; scene.add(prizeHolder);
     let prizeObj = null;
     function disposeObj(o){ o.traverse(n => { if(n.geometry) n.geometry.dispose(); if(n.material){ (Array.isArray(n.material)?n.material:[n.material]).forEach(m => m.dispose()); } }); }
@@ -712,17 +739,17 @@ const CASES = (function(){
       PTS.points = res.j.points; refresh(); setCap(`<div class="cs-hint">Открываем…</div>`);
       const win = PRIZES.find(x => x.id === res.j.prize) || PRIZES[0];
       if(prizeObj){ prizeHolder.remove(prizeObj); disposeObj(prizeObj); }
-      prizeObj = win.id==="juice" ? makeJuice() : win.id==="pod" ? makePod() : makeNone();
+      prizeObj = win.id==="juice" ? makeJuice() : win.id==="pod" ? makePod() : win.pc ? makeTicket(win) : makeNone();
       prizeHolder.add(prizeObj); prizeHolder.position.set(0,.9,0); prizeHolder.scale.setScalar(.05); prizeHolder.visible = false;
       setGlow(win.color);
       await Promise.all([reelSpin(win), tween(800, e => { shake = Math.sin(e*Math.PI)*(1-e*.3); }, x => x)]); shake = 0;
       stageEl.classList.add("open");
-      if(!reduce) burst(win.color, win.id==="pod"?260 : win.id==="juice"?150 : 40);
+      if(!reduce) burst(win.color, win.id==="pod"||win.id==="disc50"?260 : win.id==="none"?40 : 150);
       prizeHolder.visible = true;
       tween(700, e => { hinge.rotation.x = lerp(0,-1.95,e); }, easeBack);
       tween(500, e => { glow.v = e; });
       await tween(1000, e => { prizeHolder.position.y = lerp(.9,2.85,e); prizeHolder.scale.setScalar(lerp(.05,1,e)); }, easeBack, 120);
-      setCap(`<div class="cs-drop">${win.name}</div><div class="cs-tag">${win.id==="none" ? win.tag : "код " + res.j.code + " · он в профиле"}</div><div class="cs-tag">нажми, чтобы закрыть</div>`);
+      setCap(`<div class="cs-drop">${win.pc ? "Скидка " + win.name : win.name}</div><div class="cs-tag">${win.id==="none" ? win.tag : win.pc ? "скидка в профиле · выбери при оформлении" : "код " + res.j.code + " · он в профиле"}</div><div class="cs-tag">нажми, чтобы закрыть</div>`);
       state = "open"; loadMe();
       try { if(window.Telegram && Telegram.WebApp.HapticFeedback) Telegram.WebApp.HapticFeedback.notificationOccurred(win.id==="none"?"warning":"success"); } catch(e){}
     }
@@ -848,7 +875,7 @@ function sendToManager(o){
 async function submitOrder(){
   const c = S.co; if(c.sending) return;
   const city = c.city, ship = shipCost(), u = tgUser();
-  const rw = (c.reward==="disc25"||c.reward==="liquid") ? activeReward(c.reward) : null;
+  const rw = c.reward ? activeReward(c.reward) : null;
   const rdisc = rw ? rewardDisc(c.reward, cartSum()) : 0;
   const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
   const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0, rewardName:rw?rw.name:"", rewardDisc:rdisc,
@@ -889,13 +916,12 @@ function coRender(){
   let rows = Object.entries(S.cart).map(([id,q])=>{const p=products.find(x=>x.id==id);return `<div class="r"><span>${p.name} · ${q} шт</span><b>${p.cat===LIQUID_CAT?"":money(p.price*q)}</b></div>`}).join("");
   if(tt.liqQty) rows += `<div class="r"><span>Жижи, ${tt.liqQty} шт (цена набора)</span><b>${money(tt.liqSum)}</b></div>`;
   if(c.delivery==="post") rows += `<div class="r"><span>Доставка</span><b>${ship?money(ship):"бесплатно"}</b></div>`;
-  if(c.reward==="disc25" && !activeReward("disc25")) c.reward = "";
-  if(c.reward==="liquid" && !activeReward("liquid")) c.reward = "";
+  if(c.reward && !activeReward(c.reward)) c.reward = "";
   const rdisc = rewardDisc(c.reward, cartSum());
   const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross);
   if(!plan.k) c.usePts = "0";
   const disc = c.usePts==="1" ? plan.disc : 0;
-  if(rdisc) rows += `<div class="r"><span>Награда: скидка −${activeReward("disc25").percent}%</span><b>−${money(rdisc)}</b></div>`;
+  if(rdisc) rows += `<div class="r"><span>Награда: скидка −${activeReward(c.reward).percent}%</span><b>−${money(rdisc)}</b></div>`;
   if(c.reward==="liquid") rows += `<div class="r"><span>Награда: бесплатная жидкость</span><b>🎁</b></div>`;
   if(disc) rows += `<div class="r"><span>Скидка баллами (${plan.spend})</span><b>−${money(disc)}</b></div>`;
   const total = gross - disc;
@@ -910,8 +936,7 @@ function coRender(){
     `<input class="inp" data-f="contact" placeholder="${c.ctype==="tg"?"@username":"+49 …"}" value="${c.contact.replace(/"/g,"&quot;")}">
      <textarea class="inp" data-f="comment" placeholder="Комментарий к заказу (не обязательно)">${c.comment}</textarea>
      <button class="btn" style="width:100%" data-costep="3">Дальше</button><button class="bk" data-costep="1">Назад</button>`;
-  const rwBtn = (kind, label) => activeReward(kind) ? `<button class="${c.reward===kind?"on":""}" data-co="reward:${c.reward===kind?"":kind}">${c.reward===kind?"✓ ":""}${label}</button>` : "";
-  const rwBtns = rwBtn("disc25","Награда: −25%") + rwBtn("liquid","Награда: бесплатная жидкость");
+  const rwBtns = rewardKinds().map(k => `<button class="${c.reward===k.kind?"on":""}" data-co="reward:${c.reward===k.kind?"":k.kind}">${c.reward===k.kind?"✓ ":""}${k.percent?"Скидка −"+k.percent+"%":"Бесплатная жидкость"}${k.n>1?" ×"+k.n:""}</button>`).join("");
   const rwRow = rwBtns ? `<div class="stl" style="margin:12px 2px 8px">Ваши награды (одну на заказ)</div><div class="seg">${rwBtns}</div>${c.reward==="liquid"?`<p class="hint">Менеджер уточнит у вас вкус бесплатной жидкости.</p>`:""}` : "";
   const ptsRow = rwRow + (plan.k ? `<div class="stl" style="margin:12px 2px 8px">Баллы: у вас ${PTS.points}</div><div class="seg"><button class="${c.usePts==="1"?"on":""}" data-co="usePts:${c.usePts==="1"?"0":"1"}">${c.usePts==="1"?"✓ ":""}Списать ${plan.spend} баллов · −${money(plan.disc)}</button></div>` : "");
   if(c.step===3) body = seg("pay",[["cash","Наличные"],["transfer","Перевод"],["crypto","Крипта"]]) +
