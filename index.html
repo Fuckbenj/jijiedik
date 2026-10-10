@@ -177,6 +177,22 @@ h1,h2,.name,.ct,.city b,.dn{font-family:var(--drip);font-weight:400;letter-spaci
 h1{font-size:30px}h2{font-size:24px}
 .name{font-size:17px}.ct{font-size:30px}.city b{font-size:24px}.dn{font-size:32px}
 .hero h1,.top .logo{color:#ff3344;text-shadow:0 0 10px #ff2233,0 0 26px #b0001a}
+/* ===== Плавное появление вкладок ===== */
+@keyframes enterUp{from{opacity:0;transform:translateY(18px) scale(.985);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+#app.enter>*{animation:enterUp .6s cubic-bezier(.2,.8,.2,1) both}
+#app.enter>*:nth-child(2){animation-delay:.07s}#app.enter>*:nth-child(3){animation-delay:.14s}#app.enter>*:nth-child(4){animation-delay:.21s}
+#app.enter>*:nth-child(5){animation-delay:.28s}#app.enter>*:nth-child(n+6){animation-delay:.34s}
+/* ===== Пустая корзина ===== */
+.bk{position:relative;text-align:center;padding:6px 0 12px}
+.bk-smoke{position:absolute;inset:-10px -30px auto;height:300px;pointer-events:none;filter:blur(26px);opacity:.85;
+background:radial-gradient(120px 90px at 22% 60%,#ff2233aa,transparent 70%),radial-gradient(130px 100px at 80% 50%,#b0001aaa,transparent 70%),radial-gradient(150px 90px at 50% 100%,#ff223355,transparent 70%);animation:bkpulse 6s ease-in-out infinite alternate}
+@keyframes bkpulse{from{transform:scale(1);opacity:.7}to{transform:scale(1.08);opacity:1}}
+.bk-art{position:relative;width:min(88%,330px);margin:0 auto;animation:bkfloat 5s ease-in-out infinite}
+@keyframes bkfloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-9px) rotate(1deg)}}
+.bk-art svg{width:100%;height:auto;overflow:visible}
+.bk-t{position:relative;margin:2px 0 6px;font:400 clamp(34px,11vw,48px)/1.05 var(--drip);text-transform:uppercase;color:#fff;text-shadow:0 0 10px #ff2233,0 0 28px #b0001a}
+.bk-q{position:relative;font:600 13px var(--body);letter-spacing:.22em;text-transform:uppercase;color:#ff6b77;margin:14px 0 0}
+.bk p{position:relative;color:var(--mute);margin:8px auto 18px;max-width:300px}
 /* ===== Задания ===== */
 .task{display:flex;gap:14px;align-items:center;padding:16px;margin-bottom:10px;border:1px solid var(--line);border-radius:20px;background:var(--card)}
 .task .tn{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:400 18px var(--head);color:#fff;background:var(--acc);box-shadow:0 0 14px #ff223388}
@@ -362,6 +378,69 @@ function filtered(){
     .sort((a,b)=>S.sort==="asc"?a.price-b.price:b.price-a.price);
 }
 const chips = () => categories.length < 2 ? "" : `<div class="chips">${["Всё",...categories].map(c=>`<button class="chip ${S.cat===c?"on":""}" data-cat="${c}">${c}</button>`).join("")}</div>`;
+
+function basket3D(o){
+  o = Object.assign({ay:30, ax:24, S:92, f:7, cx:180, cy:150, hot:"#ff2233", wire:"#ff4455", body:"#10060a", rim:true, label:true}, o);
+  const rad = d => d*Math.PI/180, cy_=Math.cos(rad(o.ay)), sy=Math.sin(rad(o.ay)), cx_=Math.cos(rad(o.ax)), sx=Math.sin(rad(o.ax));
+  const wt=1.45, dt=0.92, wb=1.08, db=0.62, yt=.62, yb=-.62;
+  const P=(x,y,z)=>{ let X=x*cy_+z*sy, Z=-x*sy+z*cy_; let Y=y*cx_+Z*sx; Z=-y*sx+Z*cx_; const s=o.f/(o.f+Z); return [o.cx+X*s*o.S, o.cy-Y*s*o.S, Z, s]; };
+  const T=[[-wt,yt,dt],[wt,yt,dt],[wt,yt,-dt],[-wt,yt,-dt]], B=[[-wb,yb,db],[wb,yb,db],[wb,yb,-db],[-wb,yb,-db]]; // T0,T1 дальние, T2,T3 ближние
+  const lerp=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+  const pj=a=>P(a[0],a[1],a[2]);
+  const f2=n=>n.toFixed(1);
+  const pts=a=>a.map(p=>f2(p[0])+" "+f2(p[1])).join("L");
+  // грани: [A верх-лево, B верх-право, C низ-право, D низ-лево]
+  const faces={back:[T[1],T[0],B[0],B[1]], front:[T[3],T[2],B[2],B[3]], left:[T[0],T[3],B[3],B[0]], right:[T[2],T[1],B[1],B[2]]};
+  const depth=k=>{const q=faces[k], c=[0,1,2].map(i=>(q[0][i]+q[1][i]+q[2][i]+q[3][i])/4); return pj(c)[2];};
+  const order=Object.keys(faces).sort((a,b)=>depth(b)-depth(a));
+  const out=[];
+  const meshOf=(q,nv,nh)=>{ let d=""; for(let i=0;i<=nv;i++){const t=i/nv; d+="M"+pts([pj(lerp(q[0],q[1],t)),pj(lerp(q[3],q[2],t))]);}
+    for(let j=0;j<=nh;j++){const u=j/nh; d+="M"+pts([pj(lerp(q[0],q[3],u)),pj(lerp(q[1],q[2],u))]);} return d; };
+  const gid="g"+Math.random().toString(36).slice(2,6);
+  const near=order.slice(2), far=order.slice(0,2);
+  let svg=`<svg viewBox="0 0 360 310" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs><filter id="${gid}a" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="${gid}b" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <linearGradient id="${gid}m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4f5"/><stop offset=".35" stop-color="#ff8a95"/><stop offset=".75" stop-color="${o.hot}"/><stop offset="1" stop-color="#7a0011"/></linearGradient>
+  <linearGradient id="${gid}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a0c14" stop-opacity=".85"/><stop offset="1" stop-color="#070203" stop-opacity=".92"/></linearGradient>
+  <radialGradient id="${gid}i" cx=".5" cy=".85" r=".8"><stop offset="0" stop-color="${o.hot}" stop-opacity=".8"/><stop offset=".6" stop-color="#5a0610" stop-opacity=".6"/><stop offset="1" stop-color="#0a0305" stop-opacity=".95"/></radialGradient></defs>`;
+  const sh=pj([0,-.7,0]);
+  svg+=`<ellipse cx="${f2(sh[0])}" cy="${f2(sh[1]+34)}" rx="120" ry="15" fill="#000" opacity=".6"/><ellipse cx="${f2(sh[0])}" cy="${f2(sh[1]+32)}" rx="84" ry="9" fill="${o.hot}" opacity=".35" filter="url(#${gid}a)"/>`;
+  // задняя ручка (дальняя)
+  const handle=(z,sc,w)=>{ let d=""; for(let i=0;i<=24;i++){const t=i/24, x=-wt*0.98+2*wt*0.98*t, y=yt+Math.sin(Math.PI*t)*0.95*sc; const p=P(x,y,z); d+=(i?"L":"M")+f2(p[0])+" "+f2(p[1]);} return d; };
+  const hb=handle(dt*.78,1.0), hf=handle(-dt*.78,1.0);
+  svg+=`<path d="${hb}" stroke="#3a0610" stroke-width="10"/><path d="${hb}" stroke="#b0001a" stroke-width="5.5"/>`;
+  // внутренность
+  svg+=`<path d="M${pts([pj(T[0]),pj(T[1]),pj(T[2]),pj(T[3])])}Z" fill="url(#${gid}i)"/>`;
+  const drawFace=(k,dim)=>{ const q=faces[k], poly="M"+pts(q.map(pj))+"Z";
+    svg+=`<path d="${poly}" fill="url(#${gid}f)"/>`;
+    svg+=`<path d="${meshOf(q,k==="front"||k==="back"?12:8,5)}" stroke="${o.wire}" stroke-width="${dim?1.1:1.6}" opacity="${dim?.5:.92}" ${dim?"":`filter="url(#${gid}b)"`}/>`;
+    svg+=`<path d="${poly}" stroke="${o.hot}" stroke-width="${dim?2:3}" opacity="${dim?.6:1}" ${dim?"":`filter="url(#${gid}a)"`}/>`; };
+  far.forEach(k=>drawFace(k,true));
+  // кольца жёсткости дальних граней
+  near.forEach(k=>drawFace(k,false));
+  // средний обруч
+  const mid=[0,1,2,3].map(i=>lerp(T[i],B[i],.5)), midD="M"+pts(mid.map(pj))+"Z";
+  svg+=`<path d="${midD}" stroke="${o.hot}" stroke-width="2.6" opacity=".95" filter="url(#${gid}b)"/>`;
+  // ободок (трубка)
+  const rimD="M"+pts(T.map(pj))+"Z", botD="M"+pts(B.map(pj))+"Z";
+  svg+=`<path d="${botD}" stroke="#1a0508" stroke-width="9"/><path d="${botD}" stroke="${o.hot}" stroke-width="3" filter="url(#${gid}a)"/>`;
+  svg+=`<path d="${rimD}" stroke="#1a0508" stroke-width="14"/><path d="${rimD}" stroke="url(#${gid}m)" stroke-width="9"/><path d="${rimD}" stroke="#fff" stroke-width="1.6" opacity=".7" transform="translate(-.8 -2.2)"/><path d="${rimD}" stroke="${o.hot}" stroke-width="2" filter="url(#${gid}a)" opacity=".9"/>`;
+  // ножки
+  B.forEach(b=>{const p=pj(b);svg+=`<circle cx="${f2(p[0])}" cy="${f2(p[1]+3)}" r="5" fill="#1a0508" stroke="${o.hot}" stroke-width="2"/>`;});
+  // табличка на ближней большой грани
+  const fk=near.reduce((a,b)=>{const ar=k=>{const p=faces[k].map(pj);return Math.abs((p[1][0]-p[0][0])*(p[3][1]-p[0][1])-(p[1][1]-p[0][1])*(p[3][0]-p[0][0]));};return ar(a)>=ar(b)?a:b;});
+  if(o.label){ const q=faces[fk]; const at=(u,v)=>pj(lerp(lerp(q[0],q[1],u),lerp(q[3],q[2],u),v));
+    const p0=at(.24,.2),p1=at(.76,.2),p3=at(.24,.66), a=(p1[0]-p0[0])/200,b=(p1[1]-p0[1])/200,c=(p3[0]-p0[0])/76,d=(p3[1]-p0[1])/76;
+    svg+=`<g transform="matrix(${a} ${b} ${c} ${d} ${p0[0]} ${p0[1]})"><rect x="0" y="0" width="200" height="76" rx="12" fill="#09030a" stroke="${o.hot}" stroke-width="5" filter="url(#${gid}a)"/><rect x="0" y="0" width="200" height="76" rx="12" fill="#09030a"/>
+      <text x="100" y="34" text-anchor="middle" font-family="'Rubik Spray Paint','Russo One',Impact,sans-serif" font-size="30" fill="#ff2a3a" stroke="#ffc2c7" stroke-width=".8">DARK</text>
+      <text x="100" y="66" text-anchor="middle" font-family="'Rubik Spray Paint','Russo One',Impact,sans-serif" font-size="30" fill="#ff2a3a" stroke="#ffc2c7" stroke-width=".8">PUFF</text></g>`; }
+  // передняя ручка
+  svg+=`<g filter="url(#${gid}a)"><path d="${hf}" stroke="${o.hot}" stroke-width="10"/></g><path d="${hf}" stroke="url(#${gid}m)" stroke-width="6.5"/>`;
+  [pj([-wt*.98,yt,-dt*.78]),pj([wt*.98,yt,-dt*.78])].forEach(p=>svg+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="7" fill="#1a0508" stroke="${o.hot}" stroke-width="2.6"/>`);
+  svg+=`</svg>`; return svg;
+}
+function basketArt(){ return basket3D({}); }
 const empty = (t,p,btn) => `<div class="empty">${mas()}<h2>${t}</h2><p>${p}</p><button class="btn" data-go="catalog">${btn}</button></div>`;
 
 const views = {
@@ -389,7 +468,7 @@ const views = {
  },
  cart(){
   const items = Object.entries(S.cart);
-  if(!items.length) return `<h1>Корзина</h1>` + empty("Корзина пуста","Выбери жижу — оформим за пару касаний.","Вернуться к товарам");
+  if(!items.length) return `<h1>Корзина</h1><div class="empty"><div class="bk-art">${basketArt()}</div><h2>Корзина пуста</h2><p>Выбери жижу — оформим за пару касаний.</p><button class="btn" data-go="catalog">Вернуться к товарам</button></div>`;
   return `<h1>Корзина</h1><p class="hint" style="margin:6px 2px 14px">Город заказа: <b>${cityName(cartCity())}</b></p>` + items.map(([id,q])=>{const p=products.find(x=>x.id==id);
    return `<div class="line">${pic(p)}<div class="mid"><div class="name">${p.name}</div><div class="sub" style="font-weight:400;color:var(--mute)">${cityName(p.city)}</div><div class="sub">${p.cat===LIQUID_CAT?"":money(p.price*q)}</div></div>
    <div class="qty"><button data-dec="${id}">−</button><b>${q}</b><button data-add="${id}">+</button></div></div>`}).join("")
@@ -1037,8 +1116,11 @@ function setPat(){
   }
   $("#pat").style.backgroundImage = patCache[key];
 }
+let lastTab = null;
 function render(){
-  $("#app").innerHTML = views[S.tab]();
+  const app = $("#app");
+  app.innerHTML = views[S.tab]();
+  if(lastTab !== S.tab){ lastTab = S.tab; app.classList.remove("enter"); void app.offsetWidth; app.classList.add("enter"); }
   $("#nav").innerHTML = tabs.map(([k,i,l])=>`<button class="${S.tab===k?"on":""}" data-go="${k}"><i>${i}</i>${l}${k==="cart"&&cartCount()?`<em>${cartCount()}</em>`:""}</button>`).join("");
   const q=$("#q"); if(q) q.oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)};
   const s=$("#sort"); if(s) s.onchange=e=>{S.sort=e.target.value;render()};
