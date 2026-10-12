@@ -52,6 +52,11 @@ code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em
     <input class="inp" id="gclient" placeholder="@username или ID клиента" autocomplete="off">
     <select class="inp" id="gkind"><option value="disc5">Скидка −5%</option><option value="disc15">Скидка −15%</option><option value="disc25">Скидка −25%</option><option value="disc50">Скидка −50%</option><option value="liquid">Бесплатная жидкость на выбор</option></select>
     <button class="btn" id="ggo">Выдать</button><p class="sub" id="gmsg" style="margin:8px 0 0"></p></div>
+  <div class="card gr" id="pbox" hidden><b class="id" style="display:block;margin-bottom:6px">Начислить баллы (для админов)</b>
+    <input class="inp" id="pclient" placeholder="@username или ID клиента" autocomplete="off">
+    <input class="inp" id="pamount" type="number" inputmode="numeric" placeholder="Сколько баллов (минус — списать)">
+    <input class="inp" id="pnote" placeholder="Комментарий (не обязательно, клиент увидит)" autocomplete="off">
+    <button class="btn" id="pgo">Начислить</button><p class="sub" id="pmsg" style="margin:8px 0 0"></p></div>
   <div id="prizes"></div>
   <p class="sub" id="sub">Загрузка…</p>
   <div id="list"></div>
@@ -65,7 +70,7 @@ code{background:#ffffff14;border-radius:6px;padding:1px 6px;letter-spacing:.08em
 const API = "https://roy555.pythonanywhere.com/panel";
 
 const COMPLETE = API.replace(/\/panel$/, "/complete"), PRIZES = API.replace(/\/panel$/, "/panel/prizes"), PRIZE_DONE = API.replace(/\/panel$/, "/prize_done");
-const GRANT = API.replace(/\/panel$/, "/grant");
+const GRANT = API.replace(/\/panel$/, "/grant"), POINTS = API.replace(/\/panel$/, "/panel/points");
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#070304"); tg.setBackgroundColor("#070304"); } catch (e) {} }
 
@@ -142,6 +147,23 @@ $("#ggo").onclick = async () => {
   $("#ggo").disabled = false;
 };
 
+$("#pgo").onclick = async () => {
+  const client = $("#pclient").value.trim(), amount = parseInt($("#pamount").value, 10), note = $("#pnote").value.trim(), msg = $("#pmsg");
+  if (!client || !amount) { msg.textContent = "Укажите клиента и число баллов (не ноль)."; return; }
+  if (!confirm((amount > 0 ? "Начислить " : "Списать ") + Math.abs(amount) + " баллов клиенту " + client + "?")) return;
+  $("#pgo").disabled = true; msg.textContent = "…";
+  try {
+    const r = await fetch(POINTS, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({initData: tg.initData, action:"add", client, amount, note})});
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { msg.textContent = "Готово: " + (j.name || "Клиент") + (j.username ? " (@" + j.username + ")" : "") + ", ID " + j.id + ". Баланс теперь " + j.points + "."; $("#pclient").value = ""; $("#pamount").value = ""; $("#pnote").value = ""; }
+    else if (r.status === 404) msg.textContent = "Клиент не найден. Он должен хотя бы раз открыть магазин через Telegram.";
+    else if (r.status === 409) msg.textContent = "Нельзя списать больше, чем есть: у клиента " + (j.have != null ? j.have : "?") + " баллов.";
+    else if (r.status === 403) msg.textContent = "Нет прав: начислять баллы могут только админы.";
+    else msg.textContent = "Не получилось. Попробуйте ещё раз.";
+  } catch (e) { msg.textContent = "Нет связи с сервером."; }
+  $("#pgo").disabled = false;
+};
+
 async function loadPrizes(){
   const box = $("#prizes");
   try {
@@ -183,7 +205,7 @@ async function load(p){
     const j = await r.json().catch(() => ({}));
     if (r.status === 403) { state("Нет доступа", "Этот раздел только для менеджеров."); $("#sub").textContent = ""; return; }
     if (!r.ok || !j.ok) throw new Error("server");
-    page = j.page; pages = j.pages; document.querySelector(".gr").hidden = false; loadPrizes();
+    page = j.page; pages = j.pages; document.querySelector(".gr").hidden = false; $("#pbox").hidden = !j.can_points; loadPrizes();
     $("#sub").textContent = j.cities.join(", ") + " · всего заказов: " + j.count;
     if (!j.items.length) { state("Заказов пока нет", "Новые заказы появятся здесь."); return; }
     $("#list").replaceChildren(...j.items.map(card));
