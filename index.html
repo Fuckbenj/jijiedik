@@ -506,9 +506,17 @@ const views = {
 const API = p => ORDER_ENDPOINT.replace(/\/order$/, p);
 const PTS = {points:0, pending:0, prizes:[], rewards:[], loaded:false, cfg:{ppi:10, case_cost:50, step_pts:100, step_eur:5}};
 const canPts = () => !!(ORDER_ENDPOINT && tg && tg.initData);
+function showBanned(){
+  if(document.getElementById("banScreen")) return;
+  const d = document.createElement("div"); d.id = "banScreen";
+  d.style.cssText = "position:fixed;inset:0;z-index:99999;background:#070304;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;font-family:var(--body,sans-serif)";
+  d.innerHTML = '<div style="font:400 38px var(--drip,Impact);text-transform:uppercase;color:#ff2a3a;text-shadow:0 0 14px #ff2233">Доступ закрыт</div><p style="color:#a58a8e;max-width:300px;margin-top:12px">Ваш аккаунт заблокирован. Если это ошибка, напишите менеджеру.</p>';
+  document.body.appendChild(d);
+}
 async function apiPost(path, body){
   const r = await fetch(API(path), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(Object.assign({initData: tg ? tg.initData : ""}, body||{}))});
   const j = await r.json().catch(()=>({}));
+  if(r.status === 403 && j.error === "banned") showBanned();
   return {r, j};
 }
 async function loadMe(){
@@ -967,6 +975,7 @@ async function submitOrder(){
     c.sending = true; coRender();
     try{
       const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,initData:tg?tg.initData:""})});
+      if(r.status===403){ const jb = await r.clone().json().catch(()=>({})); if(jb.error==="banned"){ c.sending = false; showBanned(); return; } }
       if(r.status===409 && rw && !o.spent){ c.sending = false; coRender(); toast("Награда уже недоступна. Обновили список"); loadMe(); return; }
       if(r.status===409 && (o.spent || rw)){ c.sending = false; coRender(); toast(o.spent ? "Не хватает баллов или награда недоступна. Обновили данные" : "Награда уже недоступна. Обновили список"); loadMe(); return; }
       o.sent = r.ok; try{ const j = await r.json(); if(j && j.id) o.n = j.id }catch(e){}
