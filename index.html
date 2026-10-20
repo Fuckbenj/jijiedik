@@ -295,7 +295,7 @@ const cities = [
 // Каталог: город -> категория -> товары.
 // Строка товара: [название, описание, цена, цвет, метка, фото]
 // метка: "hit" = хит продаж, "new" = новинка (можно пропустить); фото: "images/1.jpg" (можно пропустить)
-const categories = ["Жижи"];   // сейчас в наличии только жидкости (фильтр категорий скрыт, пока категория одна)
+const categories = ["Жижи","Поды"];   // фильтр категорий показывается, когда их больше одной
 // Цена набора жидкостей: общая сумма за N штук (любых жидкостей в заказе). Остальные товары считаются по своей цене.
 // Здесь для 9 штук стоит 98 € (в вашей таблице её не было); поправьте при необходимости.
 const LIQUID_CAT = "Жижи";
@@ -309,10 +309,16 @@ const FL = {"Apple Pear":"#b9e44b","Cherry Cola":"#d0182f","Cherry":"#ff2a55","E
   "Ocean Mint":"#1fd9c5","Pineapple Ice":"#ffd23d","Pink Grapefruit":"#ff6f9a","Rhubarb Snoow":"#e0489a","Very Menthol":"#8fe6ff"};
 // В каждом городе по 2 штуки каждого вкуса
 const ELF_FLAVORS = Object.keys(FL);
+// Поды Xros 6 mini (Vaporesso). Картинки: images/xros-6-mini-<цвет>.jpg
+const POD_PRICE = 25;   // ЦЕНА ПОДА В €: поменяйте на свою
+const PODS = {"Brown":"#9a5c36","Plume Pink":"#ec96be","Titanium Black":"#3a3a40","Jelly Blue":"#60a0f0"};
+const pod = (color, stock) => ["Xros 6 mini · "+color, "Vaporesso · pod-система", POD_PRICE, PODS[color], null, "images/xros-6-mini-"+color.toLowerCase().replace(/ /g,"-")+".jpg",
+  {strength:"", puffs:"", stock, desc:`Pod-система Vaporesso Xros 6 mini, цвет ${color}.`}];
+const POD_COLORS = Object.keys(PODS);
 const catalog = {
- fra:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))},
- wie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))},
- gie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))}
+ fra:{"Жижи":ELF_FLAVORS.map(f => elf(f,2)), "Поды":POD_COLORS.map(c => pod(c,2))},
+ wie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2)), "Поды":POD_COLORS.map(c => pod(c,2))},
+ gie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2)), "Поды":POD_COLORS.map(c => pod(c,2))}
 };
 // Характеристики по умолчанию для категории (показываются в описании товара).
 // У отдельного товара можно задать свои: добавьте 7-м элементом {puffs:"8 000 тяг", strength:"50 мг", desc:"Текст"}
@@ -364,7 +370,7 @@ function card(p){
   return `<div class="card" data-card="${p.id}">
    ${pic(p)}
    <div class="name">${p.name}</div><div class="sub">${cityName(p.city)} · ${p.sub}</div>
-   <div class="foot"><div><div class="price">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">${p.stock!==undefined?"в наличии: "+p.stock+" шт":"чем больше, тем дешевле"}</div>`:""}</div>
+   <div class="foot"><div><div class="price">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">${p.stock!==undefined?"в наличии: "+p.stock+" шт":"чем больше, тем дешевле"}</div>`:(p.stock!==undefined?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">в наличии: ${p.stock} шт</div>`:"")}</div>
    <button class="add" data-add="${p.id}" aria-label="В корзину">+</button></div></div>`;
 }
 function filtered(){
@@ -444,7 +450,7 @@ const views = {
   <button class="city" data-go="tasks" style="margin:6px 0 4px"><span><b>Задания</b><small>Как заработать скидки и подарки</small></span><i>›</i></button>
   ${chips()}
   ${(()=>{ const hits = products.filter(p=>p.hit&&inCat(p)), news = products.filter(p=>p.new&&inCat(p));
-    if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>Все жижи</h2><div class="hs">${all.slice(0,10).map(card).join("")}</div>${all.length>10?`<button class="btn ghost" style="width:100%;margin-top:8px" data-go="catalog">Весь каталог (${all.length})</button>`:""}` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
+    if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>${S.cat==="Всё"?"Все товары":"Все "+S.cat.toLowerCase()}</h2><div class="hs">${all.slice(0,10).map(card).join("")}</div>${all.length>10?`<button class="btn ghost" style="width:100%;margin-top:8px" data-go="catalog">Весь каталог (${all.length})</button>`:""}` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
     return (hits.length?`<h2>Хиты продаж</h2><div class="hs">${hits.map(card).join("")}</div>`:"") + (news.length?`<h2>Новинки</h2><div class="hs">${news.map(card).join("")}</div>`:""); })()}`;
  },
  catalog(){
