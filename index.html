@@ -301,24 +301,18 @@ const categories = ["Жижи"];   // сейчас в наличии тольк�
 const LIQUID_CAT = "Жижи";
 const LIQUID_TIERS = {1:20, 2:36, 3:51, 4:64, 5:75, 6:84, 7:91, 8:96, 9:98, 10:100};
 // Картинки лежат в папке images рядом с index.html: images/<название-вкуса>.jpg (например images/berry-kiwi.jpg).
-// Puffy 30 мл, крепость 5%. stock = сколько штук в наличии (нельзя заказать больше). Уберите stock, если лимита нет.
-const puffy = (flavor, color, stock) => [flavor, "Puffy · 30 мл", 20, color, null, "images/"+flavor.toLowerCase().replace(/ /g,"-")+".jpg",
-  {strength:"5%", stock, desc:`Жидкость Puffy, 30 мл, крепость 5%. Вкус: ${flavor}.`}];
-const FL = {"Peach Blueberry Ice":"#ffa97a","Tropical Fruits":"#ffc83d","Berry Kiwi":"#7bd36a","Energy Drink":"#3ad0ff","Watermelon Bubble Gum":"#ff6f91",
-  "Grape Melon":"#a870ff","Apple Grape Blueberry":"#6a7dff","Berry Cherry Cocktail":"#ff2a55","Cranberry Grape":"#c0286b","Sour Strawberry":"#ff5a4a"};
-const pf = (flavor, stock) => puffy(flavor, FL[flavor], stock);   // вкус + количество в наличии (картинка берётся из images/ по названию вкуса)
+// Elfliq 30 мл, крепость 5%. stock = сколько штук в наличии (нельзя заказать больше). Уберите stock, если лимита нет.
+// Картинка берётся из папки images по названию вкуса: images/<название-вкуса>.jpg (например images/apple-pear.jpg).
+const elf = (flavor, stock) => [flavor, "Elfliq · 30 мл", 20, FL[flavor], null, "images/"+flavor.toLowerCase().replace(/ /g,"-")+".jpg",
+  {strength:"5%", stock, desc:`Жидкость Elfliq, 30 мл, крепость 5%. Вкус: ${flavor}.`}];
+const FL = {"Apple Pear":"#b9e44b","Cherry Cola":"#d0182f","Cherry":"#ff2a55","Elf Jack":"#9b6bff","Mr Blue":"#2f7bff",
+  "Ocean Mint":"#1fd9c5","Pineapple Ice":"#ffd23d","Pink Grapefruit":"#ff6f9a","Rhubarb Snoow":"#e0489a","Very Menthol":"#8fe6ff"};
+// В каждом городе по 2 штуки каждого вкуса
+const ELF_FLAVORS = Object.keys(FL);
 const catalog = {
- fra:{
-  "Жижи":[
-    puffy("Peach Blueberry Ice","#ffa97a",2), puffy("Tropical Fruits","#ffc83d",2), puffy("Berry Kiwi","#7bd36a",1),
-    puffy("Energy Drink","#3ad0ff",1), puffy("Watermelon Bubble Gum","#ff6f91",2), puffy("Grape Melon","#a870ff",2),
-    puffy("Apple Grape Blueberry","#6a7dff",2), puffy("Berry Cherry Cocktail","#ff2a55",2), puffy("Cranberry Grape","#c0286b",2)]},
- wie:{
-  "Жижи":[pf("Tropical Fruits",2), pf("Energy Drink",1)]},
- gie:{
-  "Жижи":[
-    pf("Peach Blueberry Ice",2), pf("Tropical Fruits",2), pf("Berry Kiwi",2), pf("Energy Drink",2), pf("Watermelon Bubble Gum",2),
-    pf("Grape Melon",2), pf("Apple Grape Blueberry",2), pf("Berry Cherry Cocktail",2), pf("Cranberry Grape",2), pf("Sour Strawberry",2)]}
+ fra:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))},
+ wie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))},
+ gie:{"Жижи":ELF_FLAVORS.map(f => elf(f,2))}
 };
 // Характеристики по умолчанию для категории (показываются в описании товара).
 // У отдельного товара можно задать свои: добавьте 7-м элементом {puffs:"8 000 тяг", strength:"50 мг", desc:"Текст"}
