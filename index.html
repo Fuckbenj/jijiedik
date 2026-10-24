@@ -335,10 +335,11 @@ const cityName = id => cities.find(c=>c.id===id).name;
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try{tg.setHeaderColor("#070304");tg.setBackgroundColor("#070304")}catch(e){} }
 const $ = s => document.querySelector(s);
+const escH = v => String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 const S = {tab:"home", cat:"Всё", q:"", sort:"asc", cart:{}, open:null, detail:null, isManager:false, orders:[]};
 // Версия данных на устройстве. Пока значение на устройстве другое, история заказов один раз стирается (тестовые заказы).
 // Меняйте число только если снова хотите сбросить историю у всех: после запуска это сотрёт и настоящие заказы покупателей.
-const DATA_VERSION = "2";
+const DATA_VERSION = "3";
 const load = () => { try {
   if(localStorage.getItem('dp_ver') !== DATA_VERSION){ localStorage.removeItem('dp_orders'); localStorage.setItem('dp_ver', DATA_VERSION); return []; }
   return JSON.parse(localStorage.getItem('dp_orders')||'[]') } catch(e){ return [] } };
@@ -497,7 +498,7 @@ const views = {
   const rws = PTS.rewards.length ? `<h2>Мои награды</h2>` + PTS.rewards.map(r=>`<div class="prz"><div class="row"><b>${r.name}</b><span class="sub" style="margin:0">${r.when}</span></div>
    <div class="row" style="margin-top:8px"><span class="st ${r.status==="active"?"ok":"no"}">${r.status==="active"?"Можно применить":"Использована"}</span></div>
    ${r.status==="active"?`<p class="hint" style="margin:8px 2px 0">Выберите её на последнем шаге оформления заказа.</p>`:""}</div>`).join("") : "";
-  return `<h1>${u?u.first_name:"Профиль"}</h1>${ptsHtml}${rws}${prz}<h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
+  return `<h1>${u?escH(u.first_name):"Профиль"}</h1>${ptsHtml}${rws}${prz}<h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
    + (S.isManager ? `<h2>Менеджер</h2><a class="city" href="orders.html" style="text-decoration:none;color:inherit"><span><b>Панель заказов</b><small>Заказы вашего города</small></span><i>›</i></a>` : "") + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
  }
 };
@@ -944,7 +945,7 @@ function switchCity(cid){
 const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
 function openCheckout(){
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  S.co = {city:cartCity(),step:1,delivery:"pickup",addr:"",name:"",ctype:"tg",contact:u&&u.username?"@"+u.username:"",comment:"",pay:"cash",done:null};
+  S.co = {city:cartCity(),step:1,delivery:"pickup",addr:"",name:"",ctype:"tg",contact:u&&u.username?"@"+u.username:"",comment:"",pay:"cash",done:null,cid:Date.now().toString(36)+Math.random().toString(36).slice(2,10)};
   coRender();
 }
 function orderText(o){
@@ -974,7 +975,10 @@ async function submitOrder(){
   if(ORDER_ENDPOINT){
     c.sending = true; coRender();
     try{
-      const r = await fetch(ORDER_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,initData:tg?tg.initData:""})});
+      const ac = new AbortController(), tm = setTimeout(()=>ac.abort(), 20000);   // не зависать навсегда при плохой связи
+      let r; try{ r = await fetch(ORDER_ENDPOINT,{method:"POST",signal:ac.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,cid:c.cid,initData:tg?tg.initData:""})}); } finally { clearTimeout(tm); }
+      if(r.status===429){ c.sending = false; coRender(); toast("Слишком много заказов подряд. Подождите несколько минут или дождитесь ответа менеджера"); return; }
+      if(r.status===400 || r.status===413){ c.sending = false; coRender(); toast("Проверьте данные заказа: адрес, контакт, количество"); return; }
       if(r.status===403){ const jb = await r.clone().json().catch(()=>({})); if(jb.error==="banned"){ c.sending = false; showBanned(); return; } }
       if(r.status===409 && rw && !o.spent){ c.sending = false; coRender(); toast("Награда уже недоступна. Обновили список"); loadMe(); return; }
       if(r.status===409 && (o.spent || rw)){ c.sending = false; coRender(); toast(o.spent ? "Не хватает баллов или награда недоступна. Обновили данные" : "Награда уже недоступна. Обновили список"); loadMe(); return; }
@@ -1017,12 +1021,12 @@ function coRender(){
   const titles = {1:"Доставка",2:"Контакты",3:"Оплата"};
   let body = "";
   if(c.step===1) body = `<div class="stl" style="margin:0 2px 8px">Город</div>` + seg("city",cities.map(x=>[x.id,x.name])) + seg("delivery",[["pickup","Самовывоз"],["post","Доставка"]]) +
-    (c.delivery==="post" ? `<input class="inp" data-f="addr" placeholder="Адрес доставки" value="${c.addr.replace(/"/g,"&quot;")}"><p class="hint">Доставка — ${money(DELIVERY.post)}, бесплатно от ${money(DELIVERY.freeFrom)}.</p>` : `<p class="hint">Самовывоз: адрес и время подскажет менеджер.</p>`) +
+    (c.delivery==="post" ? `<input class="inp" data-f="addr" placeholder="Адрес доставки" maxlength="200" value="${escH(c.addr)}"><p class="hint">Доставка — ${money(DELIVERY.post)}, бесплатно от ${money(DELIVERY.freeFrom)}.</p>` : `<p class="hint">Самовывоз: адрес и время подскажет менеджер.</p>`) +
     `<button class="btn" style="width:100%" data-costep="2">Дальше</button>`;
-  if(c.step===2) body = `<input class="inp" data-f="name" placeholder="Имя (не обязательно)" value="${c.name.replace(/"/g,"&quot;")}">` +
+  if(c.step===2) body = `<input class="inp" data-f="name" placeholder="Имя (не обязательно)" maxlength="60" value="${escH(c.name)}">` +
     seg("ctype",[["phone","Телефон"],["tg","Telegram"]]) +
-    `<input class="inp" data-f="contact" placeholder="${c.ctype==="tg"?"@username":"+49 …"}" value="${c.contact.replace(/"/g,"&quot;")}">
-     <textarea class="inp" data-f="comment" placeholder="Комментарий к заказу (не обязательно)">${c.comment}</textarea>
+    `<input class="inp" data-f="contact" placeholder="${c.ctype==="tg"?"@username":"+49 …"}" maxlength="100" value="${escH(c.contact)}">
+     <textarea class="inp" data-f="comment" maxlength="500" placeholder="Комментарий к заказу (не обязательно)">${escH(c.comment)}</textarea>
      <button class="btn" style="width:100%" data-costep="3">Дальше</button><button class="bk" data-costep="1">Назад</button>`;
   const rwBtns = rewardKinds().map(k => `<button class="${c.reward===k.kind?"on":""}" data-co="reward:${c.reward===k.kind?"":k.kind}">${c.reward===k.kind?"✓ ":""}${k.percent?"Скидка −"+k.percent+"%":"Бесплатная жидкость"}${k.n>1?" ×"+k.n:""}</button>`).join("");
   const rwRow = rwBtns ? `<div class="stl" style="margin:12px 2px 8px">Ваши награды (одну на заказ)</div><div class="seg">${rwBtns}</div>${c.reward==="liquid"?`<p class="hint">Менеджер уточнит у вас вкус бесплатной жидкости.</p>`:""}` : "";
@@ -1047,8 +1051,8 @@ document.addEventListener("click",e=>{
     if(d.costep==="send"){ submitOrder(); return }
     const to=+d.costep;
     if(to>c.step){
-      if(c.step===1 && c.delivery==="post" && !c.addr.trim()) return toast("Укажите адрес");
-      if(c.step===2 && !c.contact.trim()) return toast("Укажите "+(c.ctype==="tg"?"Telegram":"телефон"));
+      if(c.step===1 && c.delivery==="post" && c.addr.trim().length<5) return toast("Укажите адрес полностью");
+      if(c.step===2 && c.contact.trim().length<3) return toast("Укажите "+(c.ctype==="tg"?"Telegram":"телефон"));
     }
     c.step=to; coRender();
   }
