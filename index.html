@@ -262,6 +262,7 @@ transition:opacity .6s,transform .8s cubic-bezier(.2,1.4,.4,1)}
 <nav id="nav"></nav>
 <div id="sheet"></div>
 <div id="co"></div>
+<div id="rv" class="co"></div>
 <div class="toast" id="toast"><img id="tim" alt=""><span id="ttx"></span></div>
 
 <script>
@@ -449,6 +450,7 @@ const views = {
   return `<div class="top"><div class="brand"><img class="av" src="${AVATAR}" alt=""><h1 class="logo">Dark Puff</h1></div><span class="age">18+</span></div>
   <div class="hero">${mas()}</div>
   <button class="city" data-go="tasks" style="margin:6px 0 4px"><span><b>Задания</b><small>Как заработать скидки и подарки</small></span><i>›</i></button>
+  ${ORDER_ENDPOINT ? `<button class="city" data-go="reviews" style="margin:0 0 4px"><span><b>Отзывы покупателей</b><small id="rvsub">${REV.count ? "★ "+REV.avg.toFixed(1)+" · отзывов: "+REV.count : "Что говорят покупатели"}</small></span><i>›</i></button>` : ""}
   ${chips()}
   ${(()=>{ const hits = products.filter(p=>p.hit&&inCat(p)), news = products.filter(p=>p.new&&inCat(p));
     if(!hits.length && !news.length){ const all = products.filter(inCat); return all.length ? `<h2>${S.cat==="Всё"?"Все товары":"Все "+S.cat.toLowerCase()}</h2><div class="hs">${all.slice(0,10).map(card).join("")}</div>${all.length>10?`<button class="btn ghost" style="width:100%;margin-top:8px" data-go="catalog">Весь каталог (${all.length})</button>`:""}` : `<div class="info" style="text-align:center;margin-top:16px">Скоро здесь появятся товары.</div>`; }
@@ -485,7 +487,8 @@ const views = {
   const list = S.orders.map(o=>{const c=o.status==="cancel", dn=o.status==="done";return `<div class="line" style="display:block${c?";opacity:.6":""}"><div class="row"><b>Заказ №${o.n}</b><span class="sub" style="margin:0">${o.date}</span></div>
    <div class="sub" style="margin:6px 0 0">${o.city?cityName(o.city)+": ":""}${o.items.map(i=>i.name+" × "+i.qty).join(", ")}</div>
    <div class="row" style="margin-top:10px"><span class="st ${c?"no":"ok"}">${c?"Отменён":dn?"Выдан":"Оформлен"}</span><b>${money(o.total)}</b></div>
-   ${c||dn?"":`<button class="cancel" data-cancel="${o.n}">Отменить заказ</button>`}</div>`}).join("");
+   ${c||dn?"":`<button class="cancel" data-cancel="${o.n}">Отменить заказ</button>`}
+   ${dn && canPts() ? (o.reviewed ? `<p class="hint" style="margin:10px 2px 0">Спасибо, отзыв оставлен ✓</p>` : `<button class="btn ghost" style="width:100%;margin-top:12px" data-review="${o.n}">Оставить отзыв</button>`) : ""}</div>`}).join("");
   const cfg = PTS.cfg;
   const ptsHtml = !canPts() ? `<div class="info">Баллы и призы работают, когда магазин открыт через Telegram.</div>`
    : `<div class="ptsbox"><div><small>Ваши баллы</small><b>${PTS.loaded?PTS.points:"…"}</b></div><span>${PTS.pending?`ещё +${PTS.pending} после выдачи заказа`:"баллы за заказы"}</span></div>
@@ -527,7 +530,7 @@ async function loadMe(){
     if(!r.ok || !j.ok) return;
     PTS.points = j.points; PTS.pending = j.pending; PTS.prizes = j.prizes || []; PTS.rewards = j.rewards || []; PTS.cfg = j.config || PTS.cfg; PTS.loaded = true;
     (j.orders||[]).forEach(x => { const o = S.orders.find(y => y.n === x.id); if(!o) return;
-      if(x.status === "done") o.status = "done"; else if(x.status === "cancelled" && o.status !== "cancel"){ o.status = "cancel"; o.cancelledAt = o.cancelledAt || Date.now(); } });
+      if(x.status === "done"){ o.status = "done"; o.reviewed = !!x.reviewed; } else if(x.status === "cancelled" && o.status !== "cancel"){ o.status = "cancel"; o.cancelledAt = o.cancelledAt || Date.now(); } });
     save();
     if(S.tab === "cases") CASES.refresh(); else if(S.tab === "profile" && !S.co) render();
   }catch(e){}
@@ -943,9 +946,11 @@ function switchCity(cid){
   coRender(); render();
 }
 const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+const promoDiscNow = (c, goods) => { const i = c && c.promo && c.promoInfo; if(!i) return 0;
+  return i.kind==="percent" ? Math.round(goods*i.value)/100 : Math.round(Math.min(i.value, goods)*100)/100; };
 function openCheckout(){
   const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  S.co = {city:cartCity(),step:1,delivery:"pickup",addr:"",name:"",ctype:"tg",contact:u&&u.username?"@"+u.username:"",comment:"",pay:"cash",done:null,cid:Date.now().toString(36)+Math.random().toString(36).slice(2,10)};
+  S.co = {city:cartCity(),step:1,delivery:"pickup",addr:"",name:"",ctype:"tg",contact:u&&u.username?"@"+u.username:"",comment:"",pay:"cash",done:null,promo:"",promoInfo:null,promoIn:"",cid:Date.now().toString(36)+Math.random().toString(36).slice(2,10)};
   coRender();
 }
 function orderText(o){
@@ -953,7 +958,7 @@ function orderText(o){
   return ["🆕 Заказ №"+o.n+" · "+cityName(o.city),
    "Клиент: ID "+(u.id||"неизвестен (открыто вне Telegram)")+(u.username?" · @"+u.username:"")+(u.first_name?" · "+u.first_name:""),
    "", ...o.items.map(i=>"• "+i.name+" × "+i.qty), "",
-   o.delivery==="post"?"Доставка: "+o.addr:"Самовывоз", "Оплата: "+payName[o.pay], o.rewardName?"Награда: "+o.rewardName+(o.rewardDisc?" (−"+money(o.rewardDisc)+")":" (уточните вкус)"):undefined, o.spent?"Скидка баллами: −"+money(o.discount)+" (списано "+o.spent+" баллов)":undefined, "Итого: "+money(o.total),
+   o.delivery==="post"?"Доставка: "+o.addr:"Самовывоз", "Оплата: "+payName[o.pay], o.rewardName?"Награда: "+o.rewardName+(o.rewardDisc?" (−"+money(o.rewardDisc)+")":" (уточните вкус)"):undefined, o.promo?"Промокод: "+o.promo+" (−"+money(o.promoDisc)+")":undefined, o.spent?"Скидка баллами: −"+money(o.discount)+" (списано "+o.spent+" баллов)":undefined, "Итого: "+money(o.total),
    "Контакт: "+o.contact, o.name?"Имя: "+o.name:undefined, o.comment?"Комментарий: "+o.comment:undefined].filter(x=>x!==undefined&&x!==null).join("\n");
 }
 function sendToManager(o){
@@ -965,8 +970,9 @@ async function submitOrder(){
   const city = c.city, ship = shipCost(), u = tgUser();
   const rw = c.reward ? activeReward(c.reward) : null;
   const rdisc = rw ? rewardDisc(c.reward, cartSum()) : 0;
-  const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
-  const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0, rewardName:rw?rw.name:"", rewardDisc:rdisc,
+  const pdisc = rw ? 0 : promoDiscNow(c, cartSum());
+  const gross = cartSum()-rdisc-pdisc+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
+  const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0, rewardName:rw?rw.name:"", rewardDisc:rdisc, promo:pdisc?c.promo:"", promoDisc:pdisc,
     items:Object.entries(S.cart).map(([id,q])=>{const pp=products.find(p=>p.id==id);return {name:pp.name+" ("+pp.sub+")",qty:q}}),
     name:c.name, contact:(c.ctype==="tg"?"Telegram ":"Тел. ")+c.contact, comment:c.comment,
     user:u?{id:u.id,username:u.username||"",first_name:u.first_name||""}:null,
@@ -976,16 +982,17 @@ async function submitOrder(){
     c.sending = true; coRender();
     try{
       const ac = new AbortController(), tm = setTimeout(()=>ac.abort(), 20000);   // не зависать навсегда при плохой связи
-      let r; try{ r = await fetch(ORDER_ENDPOINT,{method:"POST",signal:ac.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,cid:c.cid,initData:tg?tg.initData:""})}); } finally { clearTimeout(tm); }
+      let r; try{ r = await fetch(ORDER_ENDPOINT,{method:"POST",signal:ac.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({city:o.city,order:o,spend:o.spent,reward:rw?rw.id:0,promo:o.promo||"",cid:c.cid,initData:tg?tg.initData:""})}); } finally { clearTimeout(tm); }
       if(r.status===429){ c.sending = false; coRender(); toast("Слишком много заказов подряд. Подождите несколько минут или дождитесь ответа менеджера"); return; }
       if(r.status===400 || r.status===413){ c.sending = false; coRender(); toast("Проверьте данные заказа: адрес, контакт, количество"); return; }
+      if(r.status===409){ const jb = await r.clone().json().catch(()=>({})); if(jb.error==="bad promo" || jb.error==="promo and reward"){ c.sending = false; c.promo = ""; c.promoInfo = null; coRender(); toast(jb.message || "Промокод недоступен"); return; } }
       if(r.status===403){ const jb = await r.clone().json().catch(()=>({})); if(jb.error==="banned"){ c.sending = false; showBanned(); return; } }
       if(r.status===409 && rw && !o.spent){ c.sending = false; coRender(); toast("Награда уже недоступна. Обновили список"); loadMe(); return; }
       if(r.status===409 && (o.spent || rw)){ c.sending = false; coRender(); toast(o.spent ? "Не хватает баллов или награда недоступна. Обновили данные" : "Награда уже недоступна. Обновили список"); loadMe(); return; }
       o.sent = r.ok; try{ const j = await r.json(); if(j && j.id) o.n = j.id }catch(e){}
     }catch(e){ o.sent = false }
     c.sending = false;
-    if(!o.sent && (o.spent || o.rewardName)){ o.total += o.discount + o.rewardDisc; o.spent = 0; o.discount = 0; o.rewardName = ""; o.rewardDisc = 0; o.text = orderText(o); }   // не дошло до сервера: баллы не списаны, скидки нет
+    if(!o.sent && (o.spent || o.rewardName || o.promo)){ o.total += o.discount + o.rewardDisc + (o.promoDisc||0); o.spent = 0; o.discount = 0; o.rewardName = ""; o.rewardDisc = 0; o.promo = ""; o.promoDisc = 0; o.text = orderText(o); }   // не дошло до сервера: баллы не списаны, скидки нет
   }
   S.orders.unshift(o); save(); S.cart = {};
   c.done = o.n; c.order = o; coRender(); render(); loadMe();
@@ -1009,11 +1016,14 @@ function coRender(){
   if(tt.liqQty) rows += `<div class="r"><span>Жижи, ${tt.liqQty} шт (цена набора)</span><b>${money(tt.liqSum)}</b></div>`;
   if(c.delivery==="post") rows += `<div class="r"><span>Доставка</span><b>${ship?money(ship):"бесплатно"}</b></div>`;
   if(c.reward && !activeReward(c.reward)) c.reward = "";
+  if(c.promo && c.promoInfo && cartSum() < c.promoInfo.min){ c.promo = ""; c.promoInfo = null; }
   const rdisc = rewardDisc(c.reward, cartSum());
-  const gross = cartSum()-rdisc+ship, plan = ptsPlan(gross);
+  const pdisc = promoDiscNow(c, cartSum());
+  const gross = cartSum()-rdisc-pdisc+ship, plan = ptsPlan(gross);
   if(!plan.k) c.usePts = "0";
   const disc = c.usePts==="1" ? plan.disc : 0;
   if(rdisc) rows += `<div class="r"><span>Награда: скидка −${activeReward(c.reward).percent}%</span><b>−${money(rdisc)}</b></div>`;
+  if(pdisc) rows += `<div class="r"><span>Промокод ${escH(c.promo)}</span><b>−${money(pdisc)}</b></div>`;
   if(c.reward==="liquid") rows += `<div class="r"><span>Награда: бесплатная жидкость</span><b>🎁</b></div>`;
   if(disc) rows += `<div class="r"><span>Скидка баллами (${plan.spend})</span><b>−${money(disc)}</b></div>`;
   const total = gross - disc;
@@ -1030,7 +1040,10 @@ function coRender(){
      <button class="btn" style="width:100%" data-costep="3">Дальше</button><button class="bk" data-costep="1">Назад</button>`;
   const rwBtns = rewardKinds().map(k => `<button class="${c.reward===k.kind?"on":""}" data-co="reward:${c.reward===k.kind?"":k.kind}">${c.reward===k.kind?"✓ ":""}${k.percent?"Скидка −"+k.percent+"%":"Бесплатная жидкость"}${k.n>1?" ×"+k.n:""}</button>`).join("");
   const rwRow = rwBtns ? `<div class="stl" style="margin:12px 2px 8px">Ваши награды (одну на заказ)</div><div class="seg">${rwBtns}</div>${c.reward==="liquid"?`<p class="hint">Менеджер уточнит у вас вкус бесплатной жидкости.</p>`:""}` : "";
-  const ptsRow = rwRow + (plan.k ? `<div class="stl" style="margin:12px 2px 8px">Баллы: у вас ${PTS.points}</div><div class="seg"><button class="${c.usePts==="1"?"on":""}" data-co="usePts:${c.usePts==="1"?"0":"1"}">${c.usePts==="1"?"✓ ":""}Списать ${plan.spend} баллов · −${money(plan.disc)}</button></div>` : "");
+  const promoRow = !canPts() ? "" : (c.promo
+    ? `<div class="stl" style="margin:12px 2px 8px">Промокод</div><div class="seg"><button class="on" data-promo="clear">✓ ${escH(c.promo)} · −${money(pdisc)} · убрать</button></div>`
+    : `<div class="stl" style="margin:12px 2px 8px">Промокод</div><div style="display:flex;gap:8px"><input class="inp" style="margin:0;flex:1;text-transform:uppercase" data-f="promoIn" maxlength="24" autocapitalize="characters" autocomplete="off" placeholder="Есть промокод?" value="${escH(c.promoIn)}"><button class="btn" style="padding:0 18px" data-promo="apply">Применить</button></div><p class="hint" style="margin:6px 2px 0">Промокод действует вместо награды из кейса. Баллы можно списать дополнительно.</p>`);
+  const ptsRow = rwRow + promoRow + (plan.k ? `<div class="stl" style="margin:12px 2px 8px">Баллы: у вас ${PTS.points}</div><div class="seg"><button class="${c.usePts==="1"?"on":""}" data-co="usePts:${c.usePts==="1"?"0":"1"}">${c.usePts==="1"?"✓ ":""}Списать ${plan.spend} баллов · −${money(plan.disc)}</button></div>` : "");
   if(c.step===3) body = seg("pay",[["cash","Наличные"],["transfer","Перевод"],["crypto","Крипта"]]) +
     `<p class="hint">${{cash:"Оплата наличными при получении. Приготовь сумму без сдачи, если можешь.",transfer:"Реквизиты для перевода пришлёт менеджер после подтверждения.",crypto:"Адрес кошелька и сумму пришлёт менеджер после подтверждения."}[c.pay]}</p>${ptsRow}
      <button class="btn" style="width:100%" data-costep="send">${c.sending?"Отправляем…":"Подтвердить · "+money(total)}</button><button class="bk" data-costep="2">Назад</button>`;
@@ -1043,7 +1056,7 @@ document.addEventListener("input",e=>{ const f=e.target.dataset&&e.target.datase
 document.addEventListener("click",e=>{
   const t=e.target.closest("[data-co],[data-costep],[data-coclose],[data-cosend],[data-cohome]"); if(!t||!S.co) return;
   const d=t.dataset, c=S.co;
-  if(d.co){ const [k,v]=d.co.split(":"); if(k==="city"){ switchCity(v); return } c[k]=v; if(k==="ctype") c.contact=""; coRender(); }
+  if(d.co){ const [k,v]=d.co.split(":"); if(k==="city"){ switchCity(v); return } if(k==="reward" && v && c.promo){ c.promo = ""; c.promoInfo = null; toast("Награда выбрана вместо промокода"); } c[k]=v; if(k==="ctype") c.contact=""; coRender(); }
   else if(d.coclose!==undefined){ S.co=null; coRender(); }
   else if(d.cosend!==undefined){ sendToManager(c.order) }
   else if(d.cohome!==undefined){ S.co=null; S.tab="home"; coRender(); render(); window.scrollTo(0,0) }
@@ -1057,6 +1070,83 @@ document.addEventListener("click",e=>{
     c.step=to; coRender();
   }
 });
+/* ===== Промокоды ===== */
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-promo]"); if(!t || !S.co) return;
+  const c = S.co;
+  if(t.dataset.promo === "clear"){ c.promo = ""; c.promoInfo = null; coRender(); return; }
+  const code = (c.promoIn || "").trim().toUpperCase();
+  if(!code) return toast("Введите промокод");
+  if(!canPts()) return toast("Промокоды работают только в Telegram");
+  if(t.disabled) return; t.disabled = true;
+  try{
+    const {r, j} = await apiPost("/promo/check", {code, goods: cartSum()});
+    if(!r.ok || !j.ok){ t.disabled = false; toast(j.message || "Не удалось проверить промокод"); return; }
+    if(c.reward){ c.reward = ""; toast("Промокод применён вместо награды"); } else toast("Промокод применён");
+    c.promo = j.code; c.promoInfo = {kind:j.kind, value:j.value, min:j.min_total || 0}; c.promoIn = "";
+    coRender();
+  }catch(err){ t.disabled = false; toast("Нет связи. Попробуйте ещё раз"); }
+});
+
+/* ===== Отзывы ===== */
+const REV = {items:[], count:0, avg:0, loaded:false, at:0, busy:false};
+const stars = n => { n = Math.round(n); return "★".repeat(n) + "☆".repeat(5-n); };
+async function loadReviews(force){
+  if(!ORDER_ENDPOINT || REV.busy || (!force && Date.now()-REV.at < 30000)) return;
+  REV.busy = true;
+  try{
+    const r = await fetch(API("/reviews"), {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+    const j = await r.json();
+    if(r.ok && j.ok){ REV.items = j.items || []; REV.count = j.count || 0; REV.avg = j.avg || 0; REV.loaded = true; REV.at = Date.now(); }
+  }catch(e){}
+  REV.busy = false;
+  const sub = $("#rvsub"); if(sub) sub.textContent = REV.count ? "★ " + REV.avg.toFixed(1) + " · отзывов: " + REV.count : "Что говорят покупатели";
+  if(S.tab === "reviews") render();
+}
+views.reviews = () => `<button class="back" data-go="home">← Назад</button><h1>Отзывы</h1>
+  ${REV.count ? `<div class="ptsbox"><div><small>Средняя оценка</small><b>${REV.avg.toFixed(1)} ★</b></div><span>отзывов: ${REV.count}</span></div>` : ""}
+  <p class="hint" style="margin:10px 2px 14px">Отзывы оставляют только покупатели после получения заказа. Оставить отзыв можно в профиле.</p>`
+  + (REV.items.length ? REV.items.map(v => `<div class="prz"><div class="row"><b>${escH(v.name)}</b><span class="sub" style="margin:0">${escH(v.when)}</span></div>
+     <div style="color:#ffb340;font-size:17px;margin:6px 0;letter-spacing:2px">${stars(v.rating)}</div><div style="white-space:pre-wrap;word-break:break-word">${escH(v.text)}</div></div>`).join("")
+    : `<div class="info" style="text-align:center">${REV.loaded ? "Пока нет отзывов. Станьте первым: оформите заказ и оставьте отзыв в профиле." : (ORDER_ENDPOINT ? "Загружаем отзывы…" : "Отзывы недоступны.")}</div>`);
+const RV = {order:0, rating:0, text:"", sending:false};
+function rvRender(){
+  const el = $("#rv"); if(!el) return;
+  if(!RV.order){ el.className = "co"; el.innerHTML = ""; document.body.style.overflow = S.co ? "hidden" : ""; return; }
+  el.className = "co on"; document.body.style.overflow = "hidden";
+  el.innerHTML = `<div class="bd" data-rvclose></div><div class="sh"><div class="grab"></div><div class="ct" style="font-size:22px">Отзыв о заказе №${RV.order}</div>
+   <div class="seg" style="gap:4px">${[1,2,3,4,5].map(i => `<button class="${RV.rating>=i?"on":""}" data-rvstar="${i}" style="font-size:22px;padding:10px 0">★</button>`).join("")}</div>
+   <textarea class="inp" data-rvf="text" maxlength="500" placeholder="Что понравилось? Как прошла выдача?">${escH(RV.text)}</textarea>
+   <p class="hint">Отзыв увидят все покупатели, будет показано ваше имя из Telegram. Ссылки и @ники в отзывах запрещены.</p>
+   <button class="btn" style="width:100%" data-rvsend>${RV.sending ? "Отправляем…" : "Отправить отзыв"}</button><button class="bk" data-rvclose>Отмена</button></div>`;
+}
+function rvUpdate(){   // без перерисовки окна (иначе оно «выезжает» заново и сбивается ввод)
+  document.querySelectorAll("#rv [data-rvstar]").forEach(b => b.classList.toggle("on", RV.rating >= +b.dataset.rvstar));
+  const sb = document.querySelector("#rv [data-rvsend]"); if(sb) sb.textContent = RV.sending ? "Отправляем…" : "Отправить отзыв";
+}
+document.addEventListener("input", e => { if(e.target.dataset && e.target.dataset.rvf === "text") RV.text = e.target.value; });
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-review],[data-rvclose],[data-rvstar],[data-rvsend]"); if(!t) return;
+  const d = t.dataset;
+  if(d.review){ RV.order = +d.review; RV.rating = 0; RV.text = ""; RV.sending = false; rvRender(); return; }
+  if(d.rvclose !== undefined){ RV.order = 0; rvRender(); return; }
+  if(d.rvstar){ RV.rating = +d.rvstar; rvUpdate(); return; }
+  if(d.rvsend !== undefined){
+    if(RV.sending) return;
+    if(RV.rating < 1) return toast("Поставьте оценку звёздами");
+    if(RV.text.trim().length < 3) return toast("Напишите хотя бы пару слов");
+    RV.sending = true; rvUpdate();
+    try{
+      const {r, j} = await apiPost("/review/add", {order:RV.order, rating:RV.rating, text:RV.text});
+      if(r.ok && j.ok){
+        const o = S.orders.find(x => x.n === RV.order); if(o){ o.reviewed = true; save(); }
+        RV.order = 0; rvRender(); toast("Спасибо за отзыв!"); loadReviews(true); if(S.tab === "profile") render();
+      } else { RV.sending = false; rvUpdate(); toast(j.message || (j.error === "banned" ? "Недоступно" : "Не удалось отправить отзыв")); }
+    }catch(err){ RV.sending = false; rvUpdate(); toast("Нет связи. Попробуйте ещё раз"); }
+  }
+});
+loadReviews();
+
 function sheet(){
   const p = products.find(x=>x.id===S.detail), el = $("#sheet");
   try{ if(tg&&tg.BackButton){ p?tg.BackButton.show():tg.BackButton.hide() } }catch(e){}
