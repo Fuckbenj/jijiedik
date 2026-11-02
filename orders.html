@@ -112,6 +112,7 @@ function card(o){
   if (o.name) c.append(kv("Имя", o.name));
   if (o.comment) c.append(kv("Комментарий", o.comment));
   if (o.reward) c.append(kv("Награда", o.reward));
+  if (o.promo) c.append(kv("Промокод", o.promo + " (−" + money(o.promo_disc) + ")"));
   if (o.discount) c.append(kv("Скидка баллами", "−" + money(o.discount) + " (" + o.spent + " б.)"));
   const t = kv("Итого", money(o.total)); t.classList.add("total"); c.append(t);
   if (o.status === "new") {
