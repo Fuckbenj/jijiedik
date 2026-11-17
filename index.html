@@ -333,6 +333,51 @@ cities.forEach(c => Object.entries(catalog[c.id]).forEach(([cat,list]) => list.f
 const cityName = id => cities.find(c=>c.id===id).name;
 // =======================================
 
+// ===== КАТАЛОГ С СЕРВЕРА =====
+// Товары, цены, остатки и фото теперь меняются в админ-панели (вкладка «Каталог»). Список выше работает как запасной:
+// он нужен, только если сервер недоступен и на телефоне ещё нет сохранённой копии каталога.
+const imgUrl = u => !u ? null : /^(https?:|images\/)/.test(u) ? u : ORDER_ENDPOINT.replace(/\/order$/, u);
+function applyCatalog(d){
+  if(!d || !Array.isArray(d.items) || !Array.isArray(d.categories)) return false;
+  if(d.tiers && typeof d.tiers === "object" && Number(d.tiers["1"]) > 0){
+    Object.keys(LIQUID_TIERS).forEach(k => delete LIQUID_TIERS[k]);
+    Object.entries(d.tiers).forEach(([k,v]) => { if(+k > 0 && +v > 0) LIQUID_TIERS[+k] = +v; });
+  }
+  const list = [];
+  d.items.forEach(it => cities.forEach((c, ci) => {
+    const st = it.stock ? it.stock[c.id] : null;
+    if(st === null || st === undefined) return;                      // в этом городе товар не продаётся
+    list.push({...(defaults[it.cat]||{}), puffs:it.puffs||"", strength:it.strength||"", desc:it.desc||"",
+      id:it.id*10+ci, pid:it.id, city:c.id, cat:it.cat, name:it.name, sub:it.sub||"", price:it.cat===LIQUID_CAT?LIQUID_TIERS[1]:Number(it.price)||0,
+      color:it.color||"#9b6bff", image:imgUrl(it.image), hit:it.tag==="hit", new:it.tag==="new", stock:Math.max(0, Math.floor(Number(st)||0))});
+  }));
+  products.length = 0; products.push(...list);
+  categories.length = 0; categories.push(...d.categories.filter(c => list.some(p => p.cat === c)));
+  if(S.cat !== "Всё" && !categories.includes(S.cat)) S.cat = "Всё";
+  Object.keys(S.cart).forEach(id => {                                // убираем из корзины то, чего больше нет или что закончилось
+    const p = products.find(x => x.id == id);
+    if(!p || p.stock <= 0) delete S.cart[id]; else if(S.cart[id] > p.stock) S.cart[id] = p.stock;
+  });
+  return true;
+}
+let _catAt = 0, _catBusy = false;
+async function loadCatalog(force){
+  if(_catBusy || (!force && Date.now() - _catAt < 20000)) return;
+  _catBusy = true;
+  const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 12000);
+  try{
+    const r = await fetch(ORDER_ENDPOINT.replace(/\/order$/, "/catalog"), {signal:ac.signal, cache:"no-store"});
+    const d = await r.json();
+    if(r.ok && d.ok && applyCatalog(d)){
+      _catAt = Date.now();
+      try{ localStorage.setItem("dp_cat", JSON.stringify(d)); }catch(e){}
+      if(!S.co) render();
+    }
+  }catch(e){}
+  clearTimeout(tm); _catBusy = false;
+}
+const stockTxt = p => p.stock === 0 ? "нет в наличии" : "в наличии: " + p.stock + " шт";
+
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); try{tg.setHeaderColor("#070304");tg.setBackgroundColor("#070304")}catch(e){} }
 const $ = s => document.querySelector(s);
@@ -372,7 +417,7 @@ function card(p){
   return `<div class="card" data-card="${p.id}">
    ${pic(p)}
    <div class="name">${p.name}</div><div class="sub">${cityName(p.city)} · ${p.sub}</div>
-   <div class="foot"><div><div class="price">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">${p.stock!==undefined?"в наличии: "+p.stock+" шт":"чем больше, тем дешевле"}</div>`:(p.stock!==undefined?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">в наличии: ${p.stock} шт</div>`:"")}</div>
+   <div class="foot"><div><div class="price">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">${p.stock!==undefined?stockTxt(p):"чем больше, тем дешевле"}</div>`:(p.stock!==undefined?`<div class="sub" style="margin:0 0 0 2px;font-size:11px">${stockTxt(p)}</div>`:"")}</div>
    <button class="add" data-add="${p.id}" aria-label="В корзину">+</button></div></div>`;
 }
 function filtered(){
@@ -535,7 +580,7 @@ async function loadMe(){
     if(S.tab === "cases") CASES.refresh(); else if(S.tab === "profile" && !S.co) render();
   }catch(e){}
 }
-document.addEventListener("visibilitychange", () => { if(!document.hidden) loadMe(); });
+document.addEventListener("visibilitychange", () => { if(!document.hidden){ loadMe(); loadCatalog(); } });
 // сколько баллов можно списать на скидку в заказе на сумму gross €
 function ptsPlan(gross){
   const c = PTS.cfg; if(!PTS.loaded) return {k:0, spend:0, disc:0};
@@ -973,7 +1018,7 @@ async function submitOrder(){
   const pdisc = rw ? 0 : promoDiscNow(c, cartSum());
   const gross = cartSum()-rdisc-pdisc+ship, plan = ptsPlan(gross), useP = c.usePts==="1" && plan.k>0;
   const o = {n:(S.orders[0]?S.orders[0].n:0)+1, city, delivery:c.delivery, addr:c.addr, ship, total:gross-(useP?plan.disc:0), pay:c.pay, spent:useP?plan.spend:0, discount:useP?plan.disc:0, rewardName:rw?rw.name:"", rewardDisc:rdisc, promo:pdisc?c.promo:"", promoDisc:pdisc,
-    items:Object.entries(S.cart).map(([id,q])=>{const pp=products.find(p=>p.id==id);return {name:pp.name+" ("+pp.sub+")",qty:q}}),
+    items:Object.entries(S.cart).map(([id,q])=>{const pp=products.find(p=>p.id==id);return {pid:pp.pid,name:pp.name+" ("+pp.sub+")",qty:q}}),
     name:c.name, contact:(c.ctype==="tg"?"Telegram ":"Тел. ")+c.contact, comment:c.comment,
     user:u?{id:u.id,username:u.username||"",first_name:u.first_name||""}:null,
     date:new Date().toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})};
@@ -1156,7 +1201,7 @@ function sheet(){
   const row = (k,v) => v ? `<div class="spec"><span>${k}</span><b>${v}</b></div>` : "";
   el.innerHTML = `<div class="bd" data-close></div><div class="sh"><button class="x" data-close aria-label="Закрыть">✕</button>${pic(p)}
    <h1 class="dn">${p.name}</h1><p class="dc">${p.cat} · ${cityName(p.city)}</p><div class="dp">${money(p.price)}</div>${p.cat===LIQUID_CAT?`<p class="hint" style="margin-top:-4px">за 1 шт. Чем больше берёте, тем выгоднее (общая цена за набор):</p><div class="tiers">${Object.entries(LIQUID_TIERS).map(([n,s])=>`<span><b>${n} шт</b> ${s} €</span>`).join("")}</div>`:""}
-   ${row("Вид",p.sub)}${row("Крепость",p.strength)}${row("Количество тяг",p.puffs)}${row("В наличии",p.stock!==undefined?p.stock+" шт":"")}
+   ${row("Вид",p.sub)}${row("Крепость",p.strength)}${row("Количество тяг",p.puffs)}${row("В наличии",p.stock!==undefined?(p.stock===0?"нет":p.stock+" шт"):"")}
    <p class="desc">${p.desc||""}</p><button class="btn" style="width:100%" data-add="${p.id}">В корзину</button></div>`;
 }
 try{ if(tg&&tg.BackButton) tg.BackButton.onClick(()=>{S.detail=null;render()}) }catch(e){}
@@ -1267,7 +1312,9 @@ document.addEventListener("click",e=>{
   else if(d.dec){if(--S.cart[d.dec]<=0) delete S.cart[d.dec]}
   render();
 });
+try{ const cc = JSON.parse(localStorage.getItem("dp_cat") || "null"); if(cc) applyCatalog(cc); }catch(e){}
 render();
+loadCatalog(true);
 // Менеджерам в профиле показывается вход в панель заказов (проверяет сервер по подписи Telegram)
 (function checkManager(){
   if(!ORDER_ENDPOINT || !tg || !tg.initData) return;
