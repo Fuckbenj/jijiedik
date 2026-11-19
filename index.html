@@ -547,7 +547,8 @@ const views = {
    <div class="row" style="margin-top:8px"><span class="st ${r.status==="active"?"ok":"no"}">${r.status==="active"?"Можно применить":"Использована"}</span></div>
    ${r.status==="active"?`<p class="hint" style="margin:8px 2px 0">Выберите её на последнем шаге оформления заказа.</p>`:""}</div>`).join("") : "";
   return `<h1>${u?escH(u.first_name):"Профиль"}</h1>${ptsHtml}${rws}${prz}<h2>Заказы</h2>` + (list || `<div class="info">Заказов пока нет. Когда вы оформите заказ, он появится здесь.</div>`)
-   + (S.isManager ? `<h2>Менеджер</h2><a class="city" href="orders.html" style="text-decoration:none;color:inherit"><span><b>Панель заказов</b><small>Заказы вашего города</small></span><i>›</i></a>` : "") + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
+   + (S.isManager ? `<h2>Менеджер</h2><a class="city" href="orders.html" style="text-decoration:none;color:inherit"><span><b>Панель заказов</b><small>Заказы вашего города</small></span><i>›</i></a>` : "")
+   + (S.isCatalog ? `<h2>Каталог</h2><a class="city" href="editor.html" style="text-decoration:none;color:inherit"><span><b>Редактор каталога</b><small>Товары, цены, фото, остатки</small></span><i>›</i></a>` : "") + `<h2>Поддержка</h2><button class="city" data-support><span><b>Написать в поддержку</b><small>Вопросы по заказу и товарам</small></span><i>›</i></button>`;
  }
 };
 
@@ -573,6 +574,7 @@ async function loadMe(){
   try{
     const {r, j} = await apiPost("/me");
     if(!r.ok || !j.ok) return;
+    const wasCat = !!S.isCatalog; S.isCatalog = !!j.can_catalog; if(wasCat !== S.isCatalog && S.tab === "profile" && !S.co) render();
     PTS.points = j.points; PTS.pending = j.pending; PTS.prizes = j.prizes || []; PTS.rewards = j.rewards || []; PTS.cfg = j.config || PTS.cfg; PTS.loaded = true;
     (j.orders||[]).forEach(x => { const o = S.orders.find(y => y.n === x.id); if(!o) return;
       if(x.status === "done"){ o.status = "done"; o.reviewed = !!x.reviewed; } else if(x.status === "cancelled" && o.status !== "cancel"){ o.status = "cancel"; o.cancelledAt = o.cancelledAt || Date.now(); } });
